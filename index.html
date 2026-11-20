@@ -14,9 +14,18 @@
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
       <div>
         <h1 class="text-2xl font-bold text-slate-900">訂單與分潤查詢系統</h1>
-        <p class="text-sm text-slate-500 mt-1" id="subtitleText">自動整合所有 YYYY-MM 月份分頁資料</p>
+        <p class="text-sm text-slate-500 mt-1" id="subtitleText">預設讀取最近 3 個月份分頁資料</p>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- 資料載入範圍選擇器（開啟網頁預設近 3 個月） -->
+        <select id="loadRangeSelect" onchange="onLoadRangeChange()"
+          class="px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm">
+          <option value="3" selected>載入範圍：近 3 個月</option>
+          <option value="6">載入範圍：近 6 個月</option>
+          <option value="12">載入範圍：近 1 年</option>
+          <option value="all">載入範圍：全部月份</option>
+        </select>
+
         <button onclick="toggleConfigModal()"
           class="inline-flex items-center justify-center px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition shadow-sm">
           API 設定
@@ -63,7 +72,7 @@
           <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">月份分頁</label>
           <select id="monthFilter" onchange="onMonthFilterChange()"
             class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white font-medium text-slate-700">
-            <option value="">全部月份</option>
+            <option value="">全部已載入月份</option>
           </select>
         </div>
 
@@ -140,7 +149,6 @@
         <div>
           <div class="flex flex-wrap items-center gap-2">
             <h2 class="text-base font-bold text-slate-900" id="chartTitle">每月訂單數與金額變化</h2>
-            <!-- 點擊日期柱狀鎖定時的狀態標籤 -->
             <button type="button" id="selectedDateBadge" onclick="clearSelectedDate()"
               class="hidden inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 hover:bg-blue-200 transition"
               title="點擊取消日期篩選">
@@ -290,8 +298,8 @@
     const DEFAULT_API_TOKEN = '';
 
     let allOrders = [];
-    let baseFilteredEntries = []; // 未套用圖表單日鎖定前的篩選結果（供日圖表維持整月柱狀）
-    let filteredEntries = [];     // 最終套用單日鎖定後的篩選結果（供卡片、排行榜、明細表）
+    let baseFilteredEntries = [];
+    let filteredEntries = [];
     let displayLimit = 100;
 
     // 圖表狀態變數
@@ -299,7 +307,7 @@
     let chartGranularity = 'monthly'; // 'monthly' | 'daily'
     let chartAmountType = 'gmv';      // 'gmv' | 'est' | 'settled'
     let isChartCollapsed = false;
-    let selectedDateFilter = '';      // 點擊日長條鎖定的日期（格式 YYYY-MM-DD）
+    let selectedDateFilter = '';
 
     // 主分頁與熱銷單品排行狀態
     let activeMainTab = 'orders';        // 'orders' | 'topProducts'
@@ -312,6 +320,7 @@
 
       document.getElementById('apiUrlInput').value = savedUrl;
       document.getElementById('apiTokenInput').value = savedToken;
+      document.getElementById('loadRangeSelect').value = '3';
 
       if (!savedUrl) {
         document.getElementById('configPanel').classList.remove('hidden');
@@ -338,9 +347,28 @@
       loadData();
     }
 
+    function onLoadRangeChange() {
+      document.getElementById('monthFilter').value = '';
+      selectedDateFilter = '';
+      chartGranularity = 'monthly';
+      updateChartControlButtons();
+      loadData();
+    }
+
+    function getRangeLabel(rangeVal) {
+      const map = {
+        '3': '最近 3 個月',
+        '6': '最近 6 個月',
+        '12': '最近 1 年',
+        'all': '全部月份'
+      };
+      return map[rangeVal] || '最近 3 個月';
+    }
+
     async function loadData() {
       const baseUrl = (localStorage.getItem('gas_order_api_url') || DEFAULT_GAS_API_URL).trim();
       const token = (localStorage.getItem('gas_order_api_token') || DEFAULT_API_TOKEN).trim();
+      const rangeVal = document.getElementById('loadRangeSelect').value || '3';
 
       if (!baseUrl) {
         document.getElementById('configPanel').classList.remove('hidden');
@@ -348,17 +376,21 @@
       }
 
       const btn = document.getElementById('refreshBtn');
+      const rangeSelect = document.getElementById('loadRangeSelect');
       const loadingEl = document.getElementById('loadingState');
+
       btn.disabled = true;
+      rangeSelect.disabled = true;
       btn.textContent = '載入中...';
       loadingEl.classList.remove('hidden');
       loadingEl.className = 'p-12 text-center text-slate-500 text-sm';
-      loadingEl.textContent = '正在透過 API 讀取 Google Sheet 多月份資料，請稍候...';
+      loadingEl.textContent = `正在透過 API 讀取「${getRangeLabel(rangeVal)}」的 Google Sheet 資料，請稍候...`;
       document.getElementById('tableContainer').classList.add('hidden');
       document.getElementById('topProductsContainer').classList.add('hidden');
 
       try {
         const requestUrl = new URL(baseUrl);
+        requestUrl.searchParams.set('range', rangeVal);
         if (token) requestUrl.searchParams.set('token', token);
 
         const response = await fetch(requestUrl.toString(), { method: 'GET', redirect: 'follow' });
@@ -368,12 +400,18 @@
         if (res.status === 'error') throw new Error(res.message);
 
         const months = res.months || [];
+        const totalAvailable = res.totalAvailableMonths || months.length;
         allOrders = res.records || [];
 
-        document.getElementById('subtitleText').textContent =
-          months.length > 0
-            ? `已自動整合 ${months.length} 個月份分頁（${months[months.length - 1]} ～ ${months[0]}）`
-            : '找不到符合 YYYY-MM 格式的工作表';
+        if (months.length > 0) {
+          const rangeSpan = `${months[months.length - 1]} ～ ${months[0]}`;
+          document.getElementById('subtitleText').textContent =
+            totalAvailable > months.length
+              ? `已載入 ${months.length} 個月份分頁（${rangeSpan}，資料庫共 ${totalAvailable} 個歷史月份）`
+              : `已完整載入全部 ${months.length} 個月份分頁（${rangeSpan}）`;
+        } else {
+          document.getElementById('subtitleText').textContent = '找不到符合 YYYY-MM 格式的工作表';
+        }
 
         populateDropdowns(months, allOrders);
         applyFilters();
@@ -384,16 +422,17 @@
         switchMainTab(activeMainTab);
       } catch (err) {
         loadingEl.className = 'p-12 text-center text-rose-600 text-sm';
-        loadingEl.innerHTML = `載入失敗：${escapeHtml(err.message)}<br><span class="text-xs text-slate-500 mt-2 block">請確認 GAS 部署權限已設為「所有人」，且網址結尾為 /exec</span>`;
+        loadingEl.innerHTML = `載入失敗：${escapeHtml(err.message)}<br><span class="text-xs text-slate-500 mt-2 block">請確認 GAS 部署已更新為最新版本、權限設為「所有人」，且網址結尾為 /exec</span>`;
       } finally {
         btn.disabled = false;
+        rangeSelect.disabled = false;
         btn.textContent = '重新整理資料';
       }
     }
 
     function populateDropdowns(months, data) {
       const monthSelect = document.getElementById('monthFilter');
-      monthSelect.innerHTML = '<option value="">全部月份（跨月總計）</option>';
+      monthSelect.innerHTML = '<option value="">全部已載入月份</option>';
       months.forEach(m => {
         monthSelect.innerHTML += `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`;
       });
@@ -655,7 +694,6 @@
         }
       }
 
-      // 若有在日圖表點擊鎖定特定日期，則進一步過濾下方卡片、排行榜與明細
       if (selectedDateFilter) {
         filteredEntries = baseFilteredEntries.filter(
           entry => getTimeBucketKey(entry.order, 'daily') === selectedDateFilter
@@ -977,7 +1015,6 @@
         }
       }[chartAmountType];
 
-      // 當有鎖定單日篩選時，高亮該日柱子並淡化其他日期
       const amountBgColors = sortedKeys.map(k => {
         const isDimmed = selectedDateFilter && k !== selectedDateFilter;
         return `rgba(${metricMeta.rgb}, ${isDimmed ? 0.2 : 0.85})`;
@@ -1030,13 +1067,11 @@
             mode: 'index',
             intersect: false
           },
-          // 滑鼠移至柱狀時顯示可點擊游標
           onHover: (event, elements) => {
             if (event.native && event.native.target) {
               event.native.target.style.cursor = elements.length > 0 ? 'pointer' : 'default';
             }
           },
-          // 點擊長條互動：按月模式下鑽該月；按日模式鎖定/解鎖該日明細
           onClick: (event, elements) => {
             if (!elements || elements.length === 0) return;
             const index = elements[0].index;
