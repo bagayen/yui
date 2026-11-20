@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>訂單與分潤查詢系統</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+  <div class="max-w-7xl mx-auto px-4 py-8">
+    <!-- 頁首 -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+      <div>
+        <h1 class="text-2xl font-bold text-slate-900">訂單與分潤查詢系統</h1>
+        <p class="text-sm text-slate-500 mt-1" id="subtitleText">自動整合所有 YYYY-MM 月份分頁資料</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="toggleConfigModal()"
+          class="inline-flex items-center justify-center px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition shadow-sm">
+          API 設定
+        </button>
+        <button onclick="loadData()" id="refreshBtn"
+          class="inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium text-white transition shadow-sm">
+          重新整理資料
+        </button>
+      </div>
+    </div>
+
+    <!-- API 連線設定面板 -->
+    <div id="configPanel" class="hidden bg-amber-50 border border-amber-200 p-4 rounded-xl mb-6">
+      <div class="text-sm font-semibold text-amber-900 mb-2">設定 Google Apps Script API 連線</div>
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
+        <div class="md:col-span-7">
+          <input type="text" id="apiUrlInput" placeholder="貼上 https://script.google.com/macros/s/.../exec"
+            class="w-full px-3 py-2 border border-amber-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+        </div>
+        <div class="md:col-span-3">
+          <input type="password" id="apiTokenInput" placeholder="API Token（選填）"
+            class="w-full px-3 py-2 border border-amber-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+        </div>
+        <div class="md:col-span-2">
+          <button onclick="saveApiConfig()"
+            class="w-full px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium transition">
+            儲存並連線
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 搜尋與篩選區塊 -->
+    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+        <div class="md:col-span-4">
+          <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">關鍵字搜尋（多關鍵字用空格分隔）</label>
+          <input type="text" id="searchInput" oninput="applyFilters()"
+            placeholder="商品名稱、訂單編號或 SubID..."
+            class="w-full px-3.5 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+        </div>
+
+        <div class="md:col-span-2">
+          <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">月份分頁</label>
+          <select id="monthFilter" onchange="onMonthFilterChange()"
+            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white font-medium text-slate-700">
+            <option value="">全部月份</option>
+          </select>
+        </div>
+
+        <div class="md:col-span-2">
+          <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">訂單狀態</label>
+          <select id="statusFilter" onchange="applyFilters()"
+            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white">
+            <option value="">全部狀態</option>
+          </select>
+        </div>
+
+        <div class="md:col-span-2">
+          <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">渠道標籤 (SubID)</label>
+          <select id="subIdFilter" onchange="applyFilters()"
+            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white">
+            <option value="">全部渠道</option>
+          </select>
+        </div>
+
+        <div class="md:col-span-2 flex items-end">
+          <button onclick="resetFilters()"
+            class="w-full px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition">
+            清除篩選
+          </button>
+        </div>
+      </div>
+
+      <!-- 計算邏輯校正選項 -->
+      <div class="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center gap-6 text-xs text-slate-600">
+        <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+          <input type="checkbox" id="excludeCancelledCheck" checked onchange="applyFilters()"
+            class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+          <span>排除 <code class="px-1 py-0.5 bg-rose-50 text-rose-600 rounded font-mono">CANCELLED</code> 訂單</span>
+        </label>
+
+        <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+          <input type="checkbox" id="prorateCommissionCheck" checked onchange="applyFilters()"
+            class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+          <span>多品訂單只命中部分商品時，分潤依「單品成交額佔比」分攤推算</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- 即時統計卡片 -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+        <div class="text-xs font-medium text-slate-500">有效訂單數</div>
+        <div class="text-2xl font-bold text-slate-900 mt-1" id="statOrderCount">0 筆</div>
+        <div class="text-xs text-slate-400 mt-1" id="statOrderBreakdown">完成 0｜待結算 0｜取消 0</div>
+      </div>
+
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+        <div class="text-xs font-medium text-slate-500" id="statGmvTitle">有效成交額</div>
+        <div class="text-2xl font-bold text-blue-600 mt-1" id="statGmv">$0</div>
+        <div class="text-xs text-slate-400 mt-1" id="statAovRate">平均客單價 $0｜平均分潤率 0.0%</div>
+      </div>
+
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+        <div class="text-xs font-medium text-slate-500">預估分潤總計</div>
+        <div class="text-2xl font-bold text-amber-600 mt-1" id="statEst">$0</div>
+        <div class="text-xs text-slate-400 mt-1" id="statEstBreakdown">待結算 $0｜已完成 $0</div>
+      </div>
+
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+        <div class="text-xs font-medium text-slate-500">結算總分潤</div>
+        <div class="text-2xl font-bold text-emerald-600 mt-1" id="statSettled">$0</div>
+        <div class="text-xs text-slate-400 mt-1" id="statSettledNote">訂單完成率 0.0%</div>
+      </div>
+    </div>
+
+    <!-- 每日 / 每月條狀圖分析區塊 -->
+    <div id="chartSection" class="hidden bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-6">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
+        <div>
+          <h2 class="text-base font-bold text-slate-900" id="chartTitle">每月訂單數與金額變化</h2>
+          <p class="text-xs text-slate-500 mt-0.5" id="chartSubtitle">依目前篩選條件即時統計（將滑鼠移至柱狀可檢視完整明細）</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="inline-flex rounded-lg bg-slate-100 p-1 text-xs font-medium">
+            <button type="button" id="btnGranularityMonthly" onclick="setChartGranularity('monthly')"
+              class="px-3 py-1.5 rounded-md bg-white text-slate-900 shadow-sm transition">
+              按月統計
+            </button>
+            <button type="button" id="btnGranularityDaily" onclick="setChartGranularity('daily')"
+              class="px-3 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition">
+              按日統計
+            </button>
+          </div>
+
+          <div class="inline-flex rounded-lg bg-slate-100 p-1 text-xs font-medium">
+            <button type="button" id="btnMetricGmv" onclick="setChartAmountType('gmv')"
+              class="px-3 py-1.5 rounded-md bg-white text-blue-700 shadow-sm transition">
+              成交額
+            </button>
+            <button type="button" id="btnMetricEst" onclick="setChartAmountType('est')"
+              class="px-3 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition">
+              預估分潤
+            </button>
+            <button type="button" id="btnMetricSettled" onclick="setChartAmountType('settled')"
+              class="px-3 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition">
+              結算分潤
+            </button>
+          </div>
+
+          <button type="button" onclick="toggleChartBody()" id="btnToggleChart"
+            class="px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 hover:bg-slate-50 transition">
+            收合圖表
+          </button>
+        </div>
+      </div>
+
+      <div id="chartBody" class="relative h-72 w-full">
+        <canvas id="trendBarChart"></canvas>
+      </div>
+    </div>
+
+    <!-- 主內容區：分頁切換列（訂單明細 vs. 熱銷單品 Top 20） -->
+    <div id="viewSwitcherBar" class="hidden flex flex-wrap items-center justify-between gap-3 mb-3">
+      <div class="inline-flex rounded-xl bg-slate-200/80 p-1 text-sm font-medium">
+        <button type="button" id="tabBtnOrders" onclick="switchMainTab('orders')"
+          class="px-4 py-2 rounded-lg bg-white text-slate-900 shadow-sm transition flex items-center gap-2">
+          <span>訂單明細列表</span>
+          <span id="tabBadgeOrders" class="px-2 py-0.5 text-xs rounded-full bg-slate-100 text-slate-600 font-mono">0</span>
+        </button>
+        <button type="button" id="tabBtnTopProducts" onclick="switchMainTab('topProducts')"
+          class="px-4 py-2 rounded-lg text-slate-600 hover:text-slate-900 transition flex items-center gap-2">
+          <span>熱銷單品 Top 20 排行榜</span>
+          <span id="tabBadgeProducts" class="px-2 py-0.5 text-xs rounded-full bg-slate-300/70 text-slate-700 font-mono">0</span>
+        </button>
+      </div>
+
+      <!-- 排行榜排序控制列（僅在切換至熱銷單品分頁時顯示） -->
+      <div id="topProductSortBar" class="hidden flex flex-wrap items-center gap-1.5 text-xs">
+        <span class="text-slate-500 mr-1">排序依據：</span>
+        <button type="button" id="sortBtnEst" onclick="setProductSortBy('estCommission')"
+          class="px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 font-semibold transition">
+          預估分潤
+        </button>
+        <button type="button" id="sortBtnSettled" onclick="setProductSortBy('settledCommission')"
+          class="px-3 py-1.5 rounded-lg bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 transition">
+          結算總分潤
+        </button>
+        <button type="button" id="sortBtnGmv" onclick="setProductSortBy('gmv')"
+          class="px-3 py-1.5 rounded-lg bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 transition">
+          累計成交額
+        </button>
+        <button type="button" id="sortBtnOrders" onclick="setProductSortBy('orderCount')"
+          class="px-3 py-1.5 rounded-lg bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 transition">
+          累計訂單數
+        </button>
+      </div>
+    </div>
+
+    <!-- 資料表格容器 -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div id="loadingState" class="p-12 text-center text-slate-500 text-sm">
+        準備連線至 Google Sheet API...
+      </div>
+
+      <!-- 分頁 1：訂單明細表格 -->
+      <div id="tableContainer" class="hidden overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-slate-100 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase">
+              <th class="py-3 px-3">訂單時間</th>
+              <th class="py-3 px-3">訂單編號</th>
+              <th class="py-3 px-3">商品名稱（藍底為目前命中加總的品項）</th>
+              <th class="py-3 px-3 text-right">數量</th>
+              <th class="py-3 px-3 text-right">單價</th>
+              <th class="py-3 px-3 text-right">預估分潤</th>
+              <th class="py-3 px-3 text-right">結算總分潤</th>
+              <th class="py-3 px-3 text-center">狀態</th>
+              <th class="py-3 px-3">渠道標籤</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody" class="divide-y divide-slate-100 text-sm align-top"></tbody>
+        </table>
+      </div>
+
+      <div id="loadMoreBar" class="hidden p-4 bg-slate-50 border-t border-slate-200 text-center">
+        <button onclick="showMoreRows()" class="px-4 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-100">
+          顯示更多資料（目前顯示 <span id="shownCount">0</span> / <span id="totalFilteredCount">0</span> 筆）
+        </button>
+      </div>
+
+      <!-- 分頁 2：熱銷單品 Top 20 排行榜 -->
+      <div id="topProductsContainer" class="hidden">
+        <div class="px-4 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+          <span>已自動拆解多品訂單並依商品名稱歸戶；單品分潤依「該商品成交額 ÷ 整筆訂單成交額」比例推算。</span>
+          <span id="topProductSummaryNote" class="font-medium text-slate-600">共歸戶 0 項不重複商品</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-100 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase">
+                <th class="py-3 px-3 w-16 text-center">排名</th>
+                <th class="py-3 px-4">商品名稱</th>
+                <th class="py-3 px-4 text-right whitespace-nowrap">累計訂單數</th>
+                <th class="py-3 px-4 text-right whitespace-nowrap">累計成交額</th>
+                <th class="py-3 px-4 text-right whitespace-nowrap">推算預估分潤</th>
+                <th class="py-3 px-4 text-right whitespace-nowrap">推算結算分潤</th>
+                <th class="py-3 px-3 w-24 text-center">明細</th>
+              </tr>
+            </thead>
+            <tbody id="topProductsBody" class="divide-y divide-slate-100 text-sm"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const DEFAULT_GAS_API_URL = '';
+    const DEFAULT_API_TOKEN = '';
+
+    let allOrders = [];
+    let filteredEntries = [];
+    let displayLimit = 100;
+
+    // 圖表狀態變數
+    let trendChartInstance = null;
+    let chartGranularity = 'monthly'; // 'monthly' | 'daily'
+    let chartAmountType = 'gmv';      // 'gmv' | 'est' | 'settled'
+    let isChartCollapsed = false;
+
+    // 主分頁與熱銷單品排行狀態
+    let activeMainTab = 'orders';        // 'orders' | 'topProducts'
+    let productSortBy = 'estCommission'; // 'estCommission' | 'settledCommission' | 'gmv' | 'orderCount'
+    let currentTopProducts = [];
+
+    window.onload = function() {
+      const savedUrl = localStorage.getItem('gas_order_api_url') || DEFAULT_GAS_API_URL;
+      const savedToken = localStorage.getItem('gas_order_api_token') || DEFAULT_API_TOKEN;
+
+      document.getElementById('apiUrlInput').value = savedUrl;
+      document.getElementById('apiTokenInput').value = savedToken;
+
+      if (!savedUrl) {
+        document.getElementById('configPanel').classList.remove('hidden');
+        document.getElementById('loadingState').textContent = '請先在上方填入你的 Google Apps Script 網頁應用程式網址。';
+        return;
+      }
+      loadData();
+    };
+
+    function toggleConfigModal() {
+      document.getElementById('configPanel').classList.toggle('hidden');
+    }
+
+    function saveApiConfig() {
+      const url = document.getElementById('apiUrlInput').value.trim();
+      const token = document.getElementById('apiTokenInput').value.trim();
+      if (!url) {
+        alert('請輸入有效的 Google Apps Script 網址');
+        return;
+      }
+      localStorage.setItem('gas_order_api_url', url);
+      localStorage.setItem('gas_order_api_token', token);
+      document.getElementById('configPanel').classList.add('hidden');
+      loadData();
+    }
+
+    async function loadData() {
+      const baseUrl = (localStorage.getItem('gas_order_api_url') || DEFAULT_GAS_API_URL).trim();
+      const token = (localStorage.getItem('gas_order_api_token') || DEFAULT_API_TOKEN).trim();
+
+      if (!baseUrl) {
+        document.getElementById('configPanel').classList.remove('hidden');
+        return;
+      }
+
+      const btn = document.getElementById('refreshBtn');
+      const loadingEl = document.getElementById('loadingState');
+      btn.disabled = true;
+      btn.textContent = '載入中...';
+      loadingEl.classList.remove('hidden');
+      loadingEl.className = 'p-12 text-center text-slate-500 text-sm';
+      loadingEl.textContent = '正在透過 API 讀取 Google Sheet 多月份資料，請稍候...';
+      document.getElementById('tableContainer').classList.add('hidden');
+      document.getElementById('topProductsContainer').classList.add('hidden');
+
+      try {
+        const requestUrl = new URL(baseUrl);
+        if (token) requestUrl.searchParams.set('token', token);
+
+        const response = await fetch(requestUrl.toString(), { method: 'GET', redirect: 'follow' });
+        if (!response.ok) throw new Error(`HTTP 錯誤狀態碼：${response.status}`);
+
+        const res = await response.json();
+        if (res.status === 'error') throw new Error(res.message);
+
+        const months = res.months || [];
+        allOrders = res.records || [];
+
+        document.getElementById('subtitleText').textContent =
+          months.length > 0
+            ? `已自動整合 ${months.length} 個月份分頁（${months[months.length - 1]} ～ ${months[0]}）`
+            : '找不到符合 YYYY-MM 格式的工作表';
+
+        populateDropdowns(months, allOrders);
+        applyFilters();
+
+        loadingEl.classList.add('hidden');
+        document.getElementById('chartSection').classList.remove('hidden');
+        document.getElementById('viewSwitcherBar').classList.remove('hidden');
+        switchMainTab(activeMainTab);
+      } catch (err) {
+        loadingEl.className = 'p-12 text-center text-rose-600 text-sm';
+        loadingEl.innerHTML = `載入失敗：${escapeHtml(err.message)}<br><span class="text-xs text-slate-500 mt-2 block">請確認 GAS 部署權限已設為「所有人」，且網址結尾為 /exec</span>`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '重新整理資料';
+      }
+    }
+
+    function populateDropdowns(months, data) {
+      const monthSelect = document.getElementById('monthFilter');
+      monthSelect.innerHTML = '<option value="">全部月份（跨月總計）</option>';
+      months.forEach(m => {
+        monthSelect.innerHTML += `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`;
+      });
+
+      const statusSet = new Set();
+      const subIdSet = new Set();
+      data.forEach(item => {
+        if (item.status) statusSet.add(item.status);
+        if (item.subId) subIdSet.add(item.subId);
+      });
+
+      const statusSelect = document.getElementById('statusFilter');
+      statusSelect.innerHTML = '<option value="">全部狀態</option>';
+      Array.from(statusSet).sort().forEach(s => {
+        statusSelect.innerHTML += `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`;
+      });
+
+      const subIdSelect = document.getElementById('subIdFilter');
+      subIdSelect.innerHTML = '<option value="">全部渠道</option>';
+      Array.from(subIdSet).sort().forEach(sub => {
+        subIdSelect.innerHTML += `<option value="${escapeHtml(sub)}">${escapeHtml(sub)}</option>`;
+      });
+    }
+
+    function switchMainTab(tab) {
+      activeMainTab = tab;
+      const isOrders = tab === 'orders';
+
+      document.getElementById('tabBtnOrders').className = isOrders
+        ? 'px-4 py-2 rounded-lg bg-white text-slate-900 shadow-sm transition flex items-center gap-2'
+        : 'px-4 py-2 rounded-lg text-slate-600 hover:text-slate-900 transition flex items-center gap-2';
+
+      document.getElementById('tabBtnTopProducts').className = !isOrders
+        ? 'px-4 py-2 rounded-lg bg-white text-slate-900 shadow-sm transition flex items-center gap-2'
+        : 'px-4 py-2 rounded-lg text-slate-600 hover:text-slate-900 transition flex items-center gap-2';
+
+      document.getElementById('topProductSortBar').classList.toggle('hidden', isOrders);
+
+      if (document.getElementById('loadingState').classList.contains('hidden')) {
+        document.getElementById('tableContainer').classList.toggle('hidden', !isOrders);
+        document.getElementById('topProductsContainer').classList.toggle('hidden', isOrders);
+
+        if (!isOrders) {
+          document.getElementById('loadMoreBar').classList.add('hidden');
+        } else {
+          const hasMore = filteredEntries.length > displayLimit;
+          document.getElementById('loadMoreBar').classList.toggle('hidden', !hasMore);
+        }
+      }
+    }
+
+    function setProductSortBy(metric) {
+      productSortBy = metric;
+      const styles = {
+        estCommission: { id: 'sortBtnEst', active: 'px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 font-semibold transition' },
+        settledCommission: { id: 'sortBtnSettled', active: 'px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold transition' },
+        gmv: { id: 'sortBtnGmv', active: 'px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-semibold transition' },
+        orderCount: { id: 'sortBtnOrders', active: 'px-3 py-1.5 rounded-lg bg-slate-800 text-white border border-slate-800 font-semibold transition' }
+      };
+      const inactiveClass = 'px-3 py-1.5 rounded-lg bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 transition';
+
+      Object.keys(styles).forEach(key => {
+        const el = document.getElementById(styles[key].id);
+        el.className = (key === metric) ? styles[key].active : inactiveClass;
+      });
+
+      updateTopProducts(filteredEntries);
+    }
+
+    function onMonthFilterChange() {
+      const selectedMonth = document.getElementById('monthFilter').value;
+      chartGranularity = selectedMonth ? 'daily' : 'monthly';
+      updateChartControlButtons();
+      applyFilters();
+    }
+
+    function setChartGranularity(mode) {
+      chartGranularity = mode;
+      updateChartControlButtons();
+      updateTrendChart(filteredEntries);
+    }
+
+    function setChartAmountType(type) {
+      chartAmountType = type;
+      updateChartControlButtons();
+      updateTrendChart(filteredEntries);
+    }
+
+    function toggleChartBody() {
+      isChartCollapsed = !isChartCollapsed;
+      const bodyEl = document.getElementById('chartBody');
+      const btnEl = document.getElementById('btnToggleChart');
+      if (isChartCollapsed) {
+        bodyEl.classList.add('hidden');
+        btnEl.textContent = '展開圖表';
+      } else {
+        bodyEl.classList.remove('hidden');
+        btnEl.textContent = '收合圖表';
+        updateTrendChart(filteredEntries);
+      }
+    }
+
+    function updateChartControlButtons() {
+      const activeGranClass = 'px-3 py-1.5 rounded-md bg-white text-slate-900 shadow-sm transition';
+      const inactiveGranClass = 'px-3 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition';
+
+      document.getElementById('btnGranularityMonthly').className =
+        chartGranularity === 'monthly' ? activeGranClass : inactiveGranClass;
+      document.getElementById('btnGranularityDaily').className =
+        chartGranularity === 'daily' ? activeGranClass : inactiveGranClass;
+
+      const activeMetricMap = {
+        gmv: 'px-3 py-1.5 rounded-md bg-white text-blue-700 shadow-sm transition',
+        est: 'px-3 py-1.5 rounded-md bg-white text-amber-700 shadow-sm transition',
+        settled: 'px-3 py-1.5 rounded-md bg-white text-emerald-700 shadow-sm transition'
+      };
+      const inactiveMetricClass = 'px-3 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition';
+
+      document.getElementById('btnMetricGmv').className =
+        chartAmountType === 'gmv' ? activeMetricMap.gmv : inactiveMetricClass;
+      document.getElementById('btnMetricEst').className =
+        chartAmountType === 'est' ? activeMetricMap.est : inactiveMetricClass;
+      document.getElementById('btnMetricSettled').className =
+        chartAmountType === 'settled' ? activeMetricMap.settled : inactiveMetricClass;
+    }
+
+    function evaluateOrderMatch(order, keywords) {
+      const pLines = (order.productLines && order.productLines.length > 0)
+        ? order.productLines
+        : [order.productName || ''];
+      const qLines = (order.qtyLines && order.qtyLines.length > 0)
+        ? order.qtyLines
+        : [order.qty || 0];
+      const prLines = (order.priceLines && order.priceLines.length > 0)
+        ? order.priceLines
+        : [0];
+
+      const lineCount = Math.max(pLines.length, qLines.length, prLines.length);
+
+      let fullQty = 0;
+      let fullGmv = 0;
+      const lineMetrics = [];
+
+      for (let k = 0; k < lineCount; k++) {
+        const q = qLines[k] !== undefined ? Number(qLines[k]) : (Number(qLines[0]) || 0);
+        const p = prLines[k] !== undefined ? Number(prLines[k]) : 0;
+        const lineGmv = q * p;
+        fullQty += q;
+        fullGmv += lineGmv;
+        lineMetrics.push({ q, p, lineGmv });
+      }
+
+      if (keywords.length === 0) {
+        const allIndices = new Set();
+        for (let k = 0; k < lineCount; k++) allIndices.add(k);
+        return {
+          matched: true,
+          matchedLineIndices: allIndices,
+          isPartialMatch: false,
+          matchedQty: fullQty,
+          matchedGmv: fullGmv,
+          fullGmv: fullGmv,
+          lineMetrics: lineMetrics,
+          ratio: 1
+        };
+      }
+
+      const searchableText = `${order.productName} ${order.orderId} ${order.subId}`.toLowerCase();
+      if (!keywords.every(kw => searchableText.includes(kw))) {
+        return { matched: false };
+      }
+
+      const strictMatched = [];
+      const partialMatched = [];
+
+      for (let k = 0; k < lineCount; k++) {
+        const lineText = String(pLines[k] || '').toLowerCase();
+        if (keywords.every(kw => lineText.includes(kw))) {
+          strictMatched.push(k);
+        } else if (keywords.some(kw => lineText.includes(kw))) {
+          partialMatched.push(k);
+        }
+      }
+
+      let targetIndices = [];
+      if (strictMatched.length > 0) {
+        targetIndices = strictMatched;
+      } else if (partialMatched.length > 0) {
+        targetIndices = partialMatched;
+      } else {
+        for (let k = 0; k < lineCount; k++) targetIndices.push(k);
+      }
+
+      let matchedQty = 0;
+      let matchedGmv = 0;
+      targetIndices.forEach(idx => {
+        matchedQty += lineMetrics[idx].q;
+        matchedGmv += lineMetrics[idx].lineGmv;
+      });
+
+      const isPartialMatch = targetIndices.length < lineCount;
+      const ratio = isPartialMatch
+        ? (fullGmv > 0 ? (matchedGmv / fullGmv) : (targetIndices.length / lineCount))
+        : 1;
+
+      return {
+        matched: true,
+        matchedLineIndices: new Set(targetIndices),
+        isPartialMatch,
+        matchedQty,
+        matchedGmv,
+        fullGmv,
+        lineMetrics,
+        ratio
+      };
+    }
+
+    function applyFilters() {
+      const rawKeyword = document.getElementById('searchInput').value.trim().toLowerCase();
+      const keywords = rawKeyword ? rawKeyword.split(/\s+/) : [];
+      const selectedMonth = document.getElementById('monthFilter').value;
+      const selectedStatus = document.getElementById('statusFilter').value;
+      const selectedSubId = document.getElementById('subIdFilter').value;
+
+      filteredEntries = [];
+
+      for (let i = 0; i < allOrders.length; i++) {
+        const item = allOrders[i];
+        if (selectedMonth && item.month !== selectedMonth) continue;
+        if (selectedStatus && item.status !== selectedStatus) continue;
+        if (selectedSubId && item.subId !== selectedSubId) continue;
+
+        const evalRes = evaluateOrderMatch(item, keywords);
+        if (evalRes.matched) {
+          filteredEntries.push({
+            order: item,
+            ...evalRes
+          });
+        }
+      }
+
+      displayLimit = 100;
+      document.getElementById('tabBadgeOrders').textContent = filteredEntries.length.toLocaleString();
+
+      updateSummaryCards(filteredEntries, keywords.length > 0);
+      updateTrendChart(filteredEntries);
+      updateTopProducts(filteredEntries);
+      renderTable(keywords.length > 0);
+    }
+
+    function updateSummaryCards(entries, hasKeyword) {
+      const excludeCancelled = document.getElementById('excludeCancelledCheck').checked;
+      const prorateCommission = document.getElementById('prorateCommissionCheck').checked;
+
+      let completedCount = 0;
+      let pendingCount = 0;
+      let cancelledCount = 0;
+      let partialOrderCount = 0;
+
+      let totalGmv = 0;
+
+      let totalEst = 0;
+      let fullOrderEst = 0;
+      let pendingEst = 0;
+      let completedEst = 0;
+
+      let totalSettled = 0;
+      let fullOrderSettled = 0;
+
+      for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i];
+        const o = entry.order;
+        const statusUpper = String(o.status || '').trim().toUpperCase();
+        const isCancelled = statusUpper === 'CANCELLED';
+        const isCompleted = statusUpper === 'COMPLETED';
+
+        if (isCancelled) cancelledCount++;
+        else if (isCompleted) completedCount++;
+        else pendingCount++;
+
+        if (!(excludeCancelled && isCancelled)) {
+          if (entry.isPartialMatch) partialOrderCount++;
+
+          totalGmv += entry.matchedGmv;
+
+          const weight = (prorateCommission && entry.isPartialMatch) ? entry.ratio : 1;
+          const estVal = o.estCommission * weight;
+          const settledVal = o.settledCommission * weight;
+
+          totalEst += estVal;
+          fullOrderEst += o.estCommission;
+
+          totalSettled += settledVal;
+          fullOrderSettled += o.settledCommission;
+
+          if (isCompleted) completedEst += estVal;
+          else if (!isCancelled) pendingEst += estVal;
+        }
+      }
+
+      const round2 = (n) => Math.round(n * 100) / 100;
+      const validOrders = completedCount + pendingCount;
+      const totalOrders = validOrders + cancelledCount;
+      const displayOrders = excludeCancelled ? validOrders : totalOrders;
+      const completionRate = totalOrders > 0 ? ((completedCount / totalOrders) * 100).toFixed(1) : '0.0';
+
+      const avgOrderValue = displayOrders > 0 ? Math.round(totalGmv / displayOrders) : 0;
+      const avgCommissionRate = totalGmv > 0 ? ((totalEst / totalGmv) * 100).toFixed(1) : '0.0';
+
+      document.getElementById('statOrderCount').textContent = `${displayOrders.toLocaleString()} 筆`;
+      document.getElementById('statOrderBreakdown').textContent =
+        `完成 ${completedCount}｜待結算 ${pendingCount}｜取消 ${cancelledCount}`;
+
+      document.getElementById('statGmvTitle').textContent =
+        (hasKeyword && partialOrderCount > 0) ? '命中品項成交額' : '有效成交額';
+      document.getElementById('statGmv').textContent = `$${Math.round(totalGmv).toLocaleString()}`;
+      document.getElementById('statAovRate').textContent =
+        (hasKeyword && partialOrderCount > 0)
+          ? `含 ${partialOrderCount} 筆多品拆算單｜平均分潤率 ${avgCommissionRate}%`
+          : `平均客單價 $${avgOrderValue.toLocaleString()}｜平均分潤率 ${avgCommissionRate}%`;
+
+      document.getElementById('statEst').textContent = `$${round2(totalEst).toLocaleString()}`;
+      document.getElementById('statEstBreakdown').textContent =
+        (prorateCommission && partialOrderCount > 0)
+          ? `依佔比推算（未分攤整單合計 $${round2(fullOrderEst).toLocaleString()}）`
+          : `待結算 $${round2(pendingEst).toLocaleString()}｜已完成 $${round2(completedEst).toLocaleString()}`;
+
+      document.getElementById('statSettled').textContent = `$${round2(totalSettled).toLocaleString()}`;
+      document.getElementById('statSettledNote').textContent =
+        (prorateCommission && partialOrderCount > 0)
+          ? `依佔比推算（未分攤整單合計 $${round2(fullOrderSettled).toLocaleString()}）`
+          : `訂單完成率 ${completionRate}%（共 ${totalOrders} 筆總單）`;
+    }
+
+    function updateTopProducts(entries) {
+      const excludeCancelled = document.getElementById('excludeCancelledCheck').checked;
+      const productMap = new Map();
+
+      for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i];
+        const o = entry.order;
+        const isCancelled = String(o.status || '').trim().toUpperCase() === 'CANCELLED';
+        if (excludeCancelled && isCancelled) continue;
+
+        const pLines = (o.productLines && o.productLines.length > 0)
+          ? o.productLines
+          : [o.productName || ''];
+        const lineCount = entry.lineMetrics.length;
+        const uniqueOrderKey = o.orderId || `row_${i}`;
+
+        entry.matchedLineIndices.forEach(idx => {
+          const rawName = String(pLines[idx] || '').trim();
+          if (!rawName) return;
+
+          const lm = entry.lineMetrics[idx] || { q: 0, p: 0, lineGmv: 0 };
+          const weight = entry.fullGmv > 0
+            ? (lm.lineGmv / entry.fullGmv)
+            : (lineCount > 0 ? (1 / lineCount) : 1);
+
+          if (!productMap.has(rawName)) {
+            productMap.set(rawName, {
+              name: rawName,
+              orderSet: new Set(),
+              gmv: 0,
+              estCommission: 0,
+              settledCommission: 0
+            });
+          }
+
+          const agg = productMap.get(rawName);
+          agg.orderSet.add(uniqueOrderKey);
+          agg.gmv += lm.lineGmv;
+          agg.estCommission += o.estCommission * weight;
+          agg.settledCommission += o.settledCommission * weight;
+        });
+      }
+
+      const allProducts = Array.from(productMap.values()).map(p => ({
+        name: p.name,
+        orderCount: p.orderSet.size,
+        gmv: p.gmv,
+        estCommission: p.estCommission,
+        settledCommission: p.settledCommission
+      }));
+
+      allProducts.sort((a, b) => b[productSortBy] - a[productSortBy]);
+
+      currentTopProducts = allProducts.slice(0, 20);
+
+      document.getElementById('tabBadgeProducts').textContent =
+        allProducts.length > 20 ? `Top 20 / ${allProducts.length}` : allProducts.length;
+      document.getElementById('topProductSummaryNote').textContent =
+        `共歸戶 ${allProducts.length.toLocaleString()} 項不重複商品`;
+
+      renderTopProductsTable(currentTopProducts);
+    }
+
+    function renderTopProductsTable(list) {
+      const tbody = document.getElementById('topProductsBody');
+      if (list.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="py-10 text-center text-slate-400">目前篩選條件下無商品統計資料</td></tr>`;
+        return;
+      }
+
+      const round2 = (n) => Math.round(n * 100) / 100;
+      const maxVal = Math.max(...list.map(item => item[productSortBy]), 1);
+
+      const barColorMap = {
+        estCommission: 'bg-amber-400',
+        settledCommission: 'bg-emerald-500',
+        gmv: 'bg-blue-500',
+        orderCount: 'bg-slate-600'
+      };
+      const barColor = barColorMap[productSortBy] || 'bg-blue-500';
+
+      tbody.innerHTML = list.map((item, idx) => {
+        const rank = idx + 1;
+        let rankBadge = `<span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-slate-600 text-xs font-semibold">${rank}</span>`;
+        if (rank === 1) rankBadge = `<span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-100 text-amber-700 text-xs font-bold ring-1 ring-amber-300">1</span>`;
+        else if (rank === 2) rankBadge = `<span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-200 text-slate-700 text-xs font-bold">2</span>`;
+        else if (rank === 3) rankBadge = `<span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-orange-100 text-orange-700 text-xs font-bold">3</span>`;
+
+        const pct = Math.max(2, Math.round((item[productSortBy] / maxVal) * 100));
+
+        return `
+          <tr class="hover:bg-slate-50 transition">
+            <td class="py-3 px-3 text-center">${rankBadge}</td>
+            <td class="py-3 px-4 max-w-md">
+              <div class="font-medium text-slate-900 truncate" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
+              <div class="w-full bg-slate-100 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                <div class="${barColor} h-1.5 rounded-full" style="width: ${pct}%"></div>
+              </div>
+            </td>
+            <td class="py-3 px-4 text-right whitespace-nowrap font-medium text-slate-700">${item.orderCount.toLocaleString()} 筆</td>
+            <td class="py-3 px-4 text-right whitespace-nowrap text-blue-600 font-medium">$${Math.round(item.gmv).toLocaleString()}</td>
+            <td class="py-3 px-4 text-right whitespace-nowrap text-amber-600 font-semibold">$${round2(item.estCommission).toLocaleString()}</td>
+            <td class="py-3 px-4 text-right whitespace-nowrap text-emerald-600 font-semibold">$${round2(item.settledCommission).toLocaleString()}</td>
+            <td class="py-3 px-3 text-center whitespace-nowrap">
+              <button type="button" onclick="inspectRankedProduct(${idx})"
+                class="px-2.5 py-1 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-600 rounded-md text-xs font-medium transition">
+                查明細
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function inspectRankedProduct(idx) {
+      const product = currentTopProducts[idx];
+      if (!product) return;
+
+      document.getElementById('searchInput').value = product.name;
+      switchMainTab('orders');
+      applyFilters();
+    }
+
+    function getTimeBucketKey(order, granularity) {
+      const rawTime = String(order.orderTime || '').trim();
+      const dateMatch = rawTime.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+
+      if (granularity === 'monthly') {
+        if (order.month && /^\d{4}-\d{2}$/.test(order.month)) return order.month;
+        if (dateMatch) {
+          return `${dateMatch[1]}-${dateMatch[2].padStart(2, '0')}`;
+        }
+        return '未知月份';
+      } else {
+        if (dateMatch) {
+          return `${dateMatch[1]}-${dateMatch[2].padStart(2, '0')}-${dateMatch[3].padStart(2, '0')}`;
+        }
+        return order.month ? `${order.month}-01` : '未知日期';
+      }
+    }
+
+    function updateTrendChart(entries) {
+      if (isChartCollapsed) return;
+
+      const excludeCancelled = document.getElementById('excludeCancelledCheck').checked;
+      const prorateCommission = document.getElementById('prorateCommissionCheck').checked;
+      const selectedMonth = document.getElementById('monthFilter').value;
+
+      const bucketMap = new Map();
+
+      for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i];
+        const o = entry.order;
+        const isCancelled = String(o.status || '').trim().toUpperCase() === 'CANCELLED';
+
+        if (excludeCancelled && isCancelled) continue;
+
+        const key = getTimeBucketKey(o, chartGranularity);
+        if (!bucketMap.has(key)) {
+          bucketMap.set(key, { orders: 0, gmv: 0, est: 0, settled: 0 });
+        }
+
+        const bucket = bucketMap.get(key);
+        const weight = (prorateCommission && entry.isPartialMatch) ? entry.ratio : 1;
+
+        bucket.orders += 1;
+        bucket.gmv += entry.matchedGmv;
+        bucket.est += o.estCommission * weight;
+        bucket.settled += o.settledCommission * weight;
+      }
+
+      if (chartGranularity === 'daily' && selectedMonth && bucketMap.size > 0) {
+        let maxDay = 1;
+        bucketMap.forEach((_, dateKey) => {
+          if (dateKey.startsWith(selectedMonth + '-')) {
+            const d = parseInt(dateKey.slice(8, 10), 10);
+            if (!isNaN(d) && d > maxDay) maxDay = d;
+          }
+        });
+        for (let d = 1; d <= maxDay; d++) {
+          const fullDate = `${selectedMonth}-${String(d).padStart(2, '0')}`;
+          if (!bucketMap.has(fullDate)) {
+            bucketMap.set(fullDate, { orders: 0, gmv: 0, est: 0, settled: 0 });
+          }
+        }
+      }
+
+      const sortedKeys = Array.from(bucketMap.keys()).sort((a, b) => a.localeCompare(b));
+      const labels = sortedKeys.map(k =>
+        (chartGranularity === 'daily' && selectedMonth) ? k.slice(5) : k
+      );
+
+      const round2 = (n) => Math.round(n * 100) / 100;
+      const orderSeries = sortedKeys.map(k => bucketMap.get(k).orders);
+      const amountSeries = sortedKeys.map(k => {
+        const b = bucketMap.get(k);
+        if (chartAmountType === 'est') return round2(b.est);
+        if (chartAmountType === 'settled') return round2(b.settled);
+        return Math.round(b.gmv);
+      });
+
+      const metricMeta = {
+        gmv: { label: '有效成交額 ($)', bg: 'rgba(37, 99, 235, 0.82)', border: 'rgb(37, 99, 235)' },
+        est: { label: '預估分潤 ($)', bg: 'rgba(217, 119, 6, 0.82)', border: 'rgb(217, 119, 6)' },
+        settled: { label: '結算總分潤 ($)', bg: 'rgba(5, 150, 105, 0.82)', border: 'rgb(5, 150, 105)' }
+      }[chartAmountType];
+
+      document.getElementById('chartTitle').textContent =
+        `${chartGranularity === 'monthly' ? '每月' : '每日'}訂單數與${metricMeta.label.replace(' ($)', '')}變化`;
+
+      const ctx = document.getElementById('trendBarChart').getContext('2d');
+
+      if (trendChartInstance) {
+        trendChartInstance.destroy();
+      }
+
+      trendChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: metricMeta.label,
+              data: amountSeries,
+              backgroundColor: metricMeta.bg,
+              borderColor: metricMeta.border,
+              borderWidth: 1,
+              borderRadius: 4,
+              yAxisID: 'yAmount',
+              maxBarThickness: 36
+            },
+            {
+              label: '訂單數 (筆)',
+              data: orderSeries,
+              backgroundColor: 'rgba(100, 116, 139, 0.45)',
+              borderColor: 'rgb(71, 85, 105)',
+              borderWidth: 1,
+              borderRadius: 4,
+              yAxisID: 'yOrders',
+              maxBarThickness: 36
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
+          plugins: {
+            legend: {
+              position: 'top',
+              align: 'end',
+              labels: {
+                usePointStyle: true,
+                boxWidth: 8,
+                font: { size: 12 }
+              }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(15, 23, 42, 0.92)',
+              padding: 12,
+              callbacks: {
+                title: (items) => {
+                  const idx = items[0].dataIndex;
+                  return `時間：${sortedKeys[idx]}`;
+                },
+                label: (context) => {
+                  const val = context.parsed.y;
+                  if (context.dataset.yAxisID === 'yAmount') {
+                    return ` ${context.dataset.label}：$${val.toLocaleString()}`;
+                  }
+                  return ` ${context.dataset.label}：${val.toLocaleString()} 筆`;
+                },
+                afterBody: (items) => {
+                  const idx = items[0].dataIndex;
+                  const b = bucketMap.get(sortedKeys[idx]);
+                  return [
+                    '──────────────────',
+                    `有效成交額：$${Math.round(b.gmv).toLocaleString()}`,
+                    `預估分潤 ：$${round2(b.est).toLocaleString()}`,
+                    `結算總分潤：$${round2(b.settled).toLocaleString()}`
+                  ];
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: {
+                font: { size: 11 },
+                maxRotation: 45,
+                autoSkip: true,
+                maxTicksLimit: 31
+              }
+            },
+            yAmount: {
+              type: 'linear',
+              position: 'left',
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: '金額 ($)',
+                font: { size: 11, weight: 'bold' },
+                color: '#475569'
+              },
+              ticks: {
+                font: { size: 11 },
+                callback: (value) => '$' + Number(value).toLocaleString()
+              },
+              grid: {
+                color: 'rgba(226, 232, 240, 0.7)'
+              }
+            },
+            yOrders: {
+              type: 'linear',
+              position: 'right',
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: '訂單數 (筆)',
+                font: { size: 11, weight: 'bold' },
+                color: '#475569'
+              },
+              ticks: {
+                precision: 0,
+                font: { size: 11 },
+                callback: (value) => Number(value).toLocaleString() + ' 筆'
+              },
+              grid: {
+                drawOnChartArea: false
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function renderTable(hasKeyword) {
+      const tbody = document.getElementById('tableBody');
+      if (filteredEntries.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="py-10 text-center text-slate-400">查無符合條件的訂單資料</td></tr>`;
+        document.getElementById('loadMoreBar').classList.add('hidden');
+        return;
+      }
+
+      const slice = filteredEntries.slice(0, displayLimit);
+      const rowsHtml = slice.map(entry => {
+        const o = entry.order;
+        const pLines = (o.productLines && o.productLines.length > 0) ? o.productLines : [o.productName || '-'];
+        const qLines = (o.qtyLines && o.qtyLines.length > 0) ? o.qtyLines : [o.qty];
+        const prLines = (o.priceLines && o.priceLines.length > 0) ? o.priceLines : [0];
+        const lineCount = Math.max(pLines.length, qLines.length, prLines.length);
+
+        let productHtml = '';
+        let qtyHtml = '';
+        let priceHtml = '';
+
+        for (let k = 0; k < lineCount; k++) {
+          const name = pLines[k] !== undefined ? pLines[k] : '-';
+          const q = qLines[k] !== undefined ? Number(qLines[k]) : (Number(qLines[0]) || 0);
+          const p = prLines[k] !== undefined ? Number(prLines[k]) : 0;
+
+          const isMatchedLine = entry.matchedLineIndices.has(k);
+          const highlight = hasKeyword && entry.isPartialMatch;
+
+          const pClass = highlight
+            ? (isMatchedLine
+                ? 'bg-blue-50 text-blue-800 font-semibold px-1.5 py-0.5 rounded -mx-1.5'
+                : 'text-slate-400 line-through decoration-slate-300')
+            : 'text-slate-900 font-medium';
+
+          const numClass = highlight
+            ? (isMatchedLine ? 'text-blue-700 font-bold py-0.5' : 'text-slate-300')
+            : 'text-slate-700';
+
+          productHtml += `<div class="truncate max-w-xs leading-6 ${pClass}" title="${escapeHtml(name)}">${escapeHtml(name)}</div>`;
+          qtyHtml += `<div class="leading-6 ${numClass}">${q.toLocaleString()}</div>`;
+          priceHtml += `<div class="leading-6 ${numClass}">$${p.toLocaleString()}</div>`;
+        }
+
+        return `
+          <tr class="hover:bg-slate-50 transition">
+            <td class="py-3 px-3 whitespace-nowrap text-slate-500 text-xs">${escapeHtml(o.orderTime)}</td>
+            <td class="py-3 px-3 whitespace-nowrap font-mono text-xs text-slate-700">${escapeHtml(o.orderId)}</td>
+            <td class="py-3 px-3">${productHtml}</td>
+            <td class="py-3 px-3 text-right whitespace-nowrap">${qtyHtml}</td>
+            <td class="py-3 px-3 text-right whitespace-nowrap">${priceHtml}</td>
+            <td class="py-3 px-3 text-right whitespace-nowrap text-amber-600 font-medium">$${o.estCommission.toLocaleString()}</td>
+            <td class="py-3 px-3 text-right whitespace-nowrap text-emerald-600 font-semibold">$${o.settledCommission.toLocaleString()}</td>
+            <td class="py-3 px-3 text-center whitespace-nowrap">${getStatusBadge(o.status)}</td>
+            <td class="py-3 px-3 whitespace-nowrap text-xs text-slate-500">${escapeHtml(o.subId || '-')}</td>
+          </tr>
+        `;
+      }).join('');
+
+      tbody.innerHTML = rowsHtml;
+
+      const loadMoreBar = document.getElementById('loadMoreBar');
+      if (activeMainTab === 'orders' && filteredEntries.length > displayLimit) {
+        loadMoreBar.classList.remove('hidden');
+        document.getElementById('shownCount').textContent = slice.length;
+        document.getElementById('totalFilteredCount').textContent = filteredEntries.length;
+      } else {
+        loadMoreBar.classList.add('hidden');
+      }
+    }
+
+    function showMoreRows() {
+      displayLimit += 100;
+      const hasKeyword = document.getElementById('searchInput').value.trim().length > 0;
+      renderTable(hasKeyword);
+    }
+
+    function resetFilters() {
+      document.getElementById('searchInput').value = '';
+      document.getElementById('monthFilter').value = '';
+      document.getElementById('statusFilter').value = '';
+      document.getElementById('subIdFilter').value = '';
+      chartGranularity = 'monthly';
+      updateChartControlButtons();
+      applyFilters();
+    }
+
+    function getStatusBadge(status) {
+      const upper = String(status || '').trim().toUpperCase();
+      let colorClass = 'bg-slate-100 text-slate-700';
+      if (upper === 'COMPLETED') colorClass = 'bg-emerald-100 text-emerald-700';
+      else if (upper === 'CANCELLED') colorClass = 'bg-rose-100 text-rose-700';
+      else if (upper === 'PENDING') colorClass = 'bg-amber-100 text-amber-700';
+
+      return `<span class="px-2 py-0.5 rounded-full text-xs font-semibold ${colorClass}">${escapeHtml(status || 'UNKNOWN')}</span>`;
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+</html>
