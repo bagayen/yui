@@ -17,7 +17,6 @@
         <p class="text-sm text-slate-500 mt-1" id="subtitleText">預設讀取最近 3 個月份分頁資料</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
-        <!-- 資料載入範圍選擇器（開啟網頁預設近 3 個月） -->
         <select id="loadRangeSelect" onchange="onLoadRangeChange()"
           class="px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm">
           <option value="3" selected>載入範圍：近 3 個月</option>
@@ -111,12 +110,12 @@
         <label class="inline-flex items-center gap-2 cursor-pointer select-none">
           <input type="checkbox" id="prorateCommissionCheck" checked onchange="applyFilters()"
             class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
-          <span>多品訂單只命中部分商品時，分潤依「單品成交額佔比」分攤推算</span>
+          <span>多品訂單只命中部分商品時，結算分潤依「單品成交額佔比」分攤推算（預估分潤直接採單品明細加總）</span>
         </label>
       </div>
     </div>
 
-    <!-- 即時統計卡片 -->
+    <!-- 即時統計卡片（統一計算至小數點後兩位） -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
         <div class="text-xs font-medium text-slate-500">有效訂單數</div>
@@ -213,7 +212,7 @@
         </button>
       </div>
 
-      <!-- 排行榜排序控制列（僅在切換至熱銷單品分頁時顯示） -->
+      <!-- 排行榜排序控制列 -->
       <div id="topProductSortBar" class="hidden flex flex-wrap items-center gap-1.5 text-xs">
         <span class="text-slate-500 mr-1">排序依據：</span>
         <button type="button" id="sortBtnEst" onclick="setProductSortBy('estCommission')"
@@ -241,7 +240,7 @@
         準備連線至 Google Sheet API...
       </div>
 
-      <!-- 分頁 1：訂單明細表格 -->
+      <!-- 分頁 1：訂單明細表格（完整保留資料庫原始小數位數） -->
       <div id="tableContainer" class="hidden overflow-x-auto">
         <table class="w-full text-left border-collapse">
           <thead>
@@ -267,10 +266,10 @@
         </button>
       </div>
 
-      <!-- 分頁 2：熱銷單品 Top 20 排行榜 -->
+      <!-- 分頁 2：熱銷單品 Top 20 排行榜（所有計算金額皆顯示至小數點後兩位） -->
       <div id="topProductsContainer" class="hidden">
         <div class="px-4 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-          <span>已自動拆解多品訂單並依商品名稱歸戶；單品分潤依「該商品成交額 ÷ 整筆訂單成交額」比例推算。</span>
+          <span>已自動拆解多品訂單並依商品名稱歸戶；預估分潤採單品明細直接加總，結算分潤依成交額佔比推算。</span>
           <span id="topProductSummaryNote" class="font-medium text-slate-600">共歸戶 0 項不重複商品</span>
         </div>
         <div class="overflow-x-auto">
@@ -281,7 +280,7 @@
                 <th class="py-3 px-4">商品名稱</th>
                 <th class="py-3 px-4 text-right whitespace-nowrap">累計訂單數</th>
                 <th class="py-3 px-4 text-right whitespace-nowrap">累計成交額</th>
-                <th class="py-3 px-4 text-right whitespace-nowrap">推算預估分潤</th>
+                <th class="py-3 px-4 text-right whitespace-nowrap">預估分潤</th>
                 <th class="py-3 px-4 text-right whitespace-nowrap">推算結算分潤</th>
                 <th class="py-3 px-3 w-24 text-center">明細</th>
               </tr>
@@ -313,6 +312,14 @@
     let activeMainTab = 'orders';        // 'orders' | 'topProducts'
     let productSortBy = 'estCommission'; // 'estCommission' | 'settledCommission' | 'gmv' | 'orderCount'
     let currentTopProducts = [];
+
+    // 保留資料庫原始小數位數（僅供最下方「訂單明細列表」使用）
+    const cleanNum = (n) => Math.round((Number(n) || 0) * 1e10) / 1e10;
+    const fmtNum = (n) => cleanNum(n).toLocaleString(undefined, { maximumFractionDigits: 10 });
+
+    // 四捨五入至小數點後兩位（供統計面板、圖表與 Top 20 排行榜計算加總使用）
+    const round2 = (n) => Math.round(((Number(n) || 0) + Number.EPSILON) * 100) / 100;
+    const fmt2 = (n) => round2(n).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
     window.onload = function() {
       const savedUrl = localStorage.getItem('gas_order_api_url') || DEFAULT_GAS_API_URL;
@@ -589,20 +596,27 @@
       const prLines = (order.priceLines && order.priceLines.length > 0)
         ? order.priceLines
         : [0];
+      const estLines = (order.estCommissionLines && order.estCommissionLines.length > 0)
+        ? order.estCommissionLines
+        : [order.estCommission || 0];
 
-      const lineCount = Math.max(pLines.length, qLines.length, prLines.length);
+      const lineCount = Math.max(pLines.length, qLines.length, prLines.length, estLines.length);
+      const hasPerLineEst = estLines.length >= lineCount || lineCount === 1;
 
       let fullQty = 0;
       let fullGmv = 0;
+      let fullEst = 0;
       const lineMetrics = [];
 
       for (let k = 0; k < lineCount; k++) {
         const q = qLines[k] !== undefined ? Number(qLines[k]) : (Number(qLines[0]) || 0);
         const p = prLines[k] !== undefined ? Number(prLines[k]) : 0;
-        const lineGmv = q * p;
-        fullQty += q;
-        fullGmv += lineGmv;
-        lineMetrics.push({ q, p, lineGmv });
+        const est = estLines[k] !== undefined ? Number(estLines[k]) : 0;
+        const lineGmv = cleanNum(q * p);
+        fullQty = cleanNum(fullQty + q);
+        fullGmv = cleanNum(fullGmv + lineGmv);
+        fullEst = cleanNum(fullEst + est);
+        lineMetrics.push({ q, p, lineGmv, est });
       }
 
       if (keywords.length === 0) {
@@ -612,9 +626,12 @@
           matched: true,
           matchedLineIndices: allIndices,
           isPartialMatch: false,
+          hasPerLineEst: hasPerLineEst,
           matchedQty: fullQty,
           matchedGmv: fullGmv,
+          matchedEst: fullEst,
           fullGmv: fullGmv,
+          fullEst: fullEst,
           lineMetrics: lineMetrics,
           ratio: 1
         };
@@ -648,9 +665,11 @@
 
       let matchedQty = 0;
       let matchedGmv = 0;
+      let rawMatchedEst = 0;
       targetIndices.forEach(idx => {
-        matchedQty += lineMetrics[idx].q;
-        matchedGmv += lineMetrics[idx].lineGmv;
+        matchedQty = cleanNum(matchedQty + lineMetrics[idx].q);
+        matchedGmv = cleanNum(matchedGmv + lineMetrics[idx].lineGmv);
+        rawMatchedEst = cleanNum(rawMatchedEst + lineMetrics[idx].est);
       });
 
       const isPartialMatch = targetIndices.length < lineCount;
@@ -658,13 +677,20 @@
         ? (fullGmv > 0 ? (matchedGmv / fullGmv) : (targetIndices.length / lineCount))
         : 1;
 
+      const matchedEst = !isPartialMatch
+        ? fullEst
+        : (hasPerLineEst ? rawMatchedEst : cleanNum(fullEst * ratio));
+
       return {
         matched: true,
         matchedLineIndices: new Set(targetIndices),
         isPartialMatch,
+        hasPerLineEst,
         matchedQty,
         matchedGmv,
+        matchedEst,
         fullGmv,
+        fullEst,
         lineMetrics,
         ratio
       };
@@ -712,6 +738,7 @@
       renderTable(keywords.length > 0);
     }
 
+    // 上方四個統計面板：計算至小數點後兩位
     function updateSummaryCards(entries, hasKeyword) {
       const excludeCancelled = document.getElementById('excludeCancelledCheck').checked;
       const prorateCommission = document.getElementById('prorateCommissionCheck').checked;
@@ -747,12 +774,12 @@
 
           totalGmv += entry.matchedGmv;
 
-          const weight = (prorateCommission && entry.isPartialMatch) ? entry.ratio : 1;
-          const estVal = o.estCommission * weight;
-          const settledVal = o.settledCommission * weight;
+          const estVal = (prorateCommission || entry.hasPerLineEst) ? entry.matchedEst : entry.fullEst;
+          const settledWeight = (prorateCommission && entry.isPartialMatch) ? entry.ratio : 1;
+          const settledVal = o.settledCommission * settledWeight;
 
           totalEst += estVal;
-          fullOrderEst += o.estCommission;
+          fullOrderEst += entry.fullEst;
 
           totalSettled += settledVal;
           fullOrderSettled += o.settledCommission;
@@ -762,7 +789,6 @@
         }
       }
 
-      const round2 = (n) => Math.round(n * 100) / 100;
       const validOrders = completedCount + pendingCount;
       const totalOrders = validOrders + cancelledCount;
       const displayOrders = excludeCancelled ? validOrders : totalOrders;
@@ -777,25 +803,26 @@
 
       document.getElementById('statGmvTitle').textContent =
         (hasKeyword && partialOrderCount > 0) ? '命中品項成交額' : '有效成交額';
-      document.getElementById('statGmv').textContent = `$${Math.round(totalGmv).toLocaleString()}`;
+      document.getElementById('statGmv').textContent = `$${fmt2(totalGmv)}`;
       document.getElementById('statAovRate').textContent =
         (hasKeyword && partialOrderCount > 0)
           ? `含 ${partialOrderCount} 筆多品拆算單｜平均分潤率 ${avgCommissionRate}%`
           : `平均客單價 $${avgOrderValue.toLocaleString()}｜平均分潤率 ${avgCommissionRate}%`;
 
-      document.getElementById('statEst').textContent = `$${round2(totalEst).toLocaleString()}`;
+      document.getElementById('statEst').textContent = `$${fmt2(totalEst)}`;
       document.getElementById('statEstBreakdown').textContent =
-        (prorateCommission && partialOrderCount > 0)
-          ? `依佔比推算（未分攤整單合計 $${round2(fullOrderEst).toLocaleString()}）`
-          : `待結算 $${round2(pendingEst).toLocaleString()}｜已完成 $${round2(completedEst).toLocaleString()}`;
+        (hasKeyword && partialOrderCount > 0)
+          ? `命中單品明細加總（整單合計 $${fmt2(fullOrderEst)}）`
+          : `待結算 $${fmt2(pendingEst)}｜已完成 $${fmt2(completedEst)}`;
 
-      document.getElementById('statSettled').textContent = `$${round2(totalSettled).toLocaleString()}`;
+      document.getElementById('statSettled').textContent = `$${fmt2(totalSettled)}`;
       document.getElementById('statSettledNote').textContent =
         (prorateCommission && partialOrderCount > 0)
-          ? `依佔比推算（未分攤整單合計 $${round2(fullOrderSettled).toLocaleString()}）`
+          ? `依佔比推算（未分攤整單合計 $${fmt2(fullOrderSettled)}）`
           : `訂單完成率 ${completionRate}%（共 ${totalOrders} 筆總單）`;
     }
 
+    // 熱銷單品 Top 20 排行榜：所有加總與推算分潤皆限制至小數點後兩位
     function updateTopProducts(entries) {
       const excludeCancelled = document.getElementById('excludeCancelledCheck').checked;
       const productMap = new Map();
@@ -816,10 +843,12 @@
           const rawName = String(pLines[idx] || '').trim();
           if (!rawName) return;
 
-          const lm = entry.lineMetrics[idx] || { q: 0, p: 0, lineGmv: 0 };
-          const weight = entry.fullGmv > 0
+          const lm = entry.lineMetrics[idx] || { q: 0, p: 0, lineGmv: 0, est: 0 };
+          const gmvWeight = entry.fullGmv > 0
             ? (lm.lineGmv / entry.fullGmv)
             : (lineCount > 0 ? (1 / lineCount) : 1);
+
+          const lineEst = entry.hasPerLineEst ? lm.est : (entry.fullEst * gmvWeight);
 
           if (!productMap.has(rawName)) {
             productMap.set(rawName, {
@@ -834,17 +863,17 @@
           const agg = productMap.get(rawName);
           agg.orderSet.add(uniqueOrderKey);
           agg.gmv += lm.lineGmv;
-          agg.estCommission += o.estCommission * weight;
-          agg.settledCommission += o.settledCommission * weight;
+          agg.estCommission += lineEst;
+          agg.settledCommission += o.settledCommission * gmvWeight;
         });
       }
 
       const allProducts = Array.from(productMap.values()).map(p => ({
         name: p.name,
         orderCount: p.orderSet.size,
-        gmv: p.gmv,
-        estCommission: p.estCommission,
-        settledCommission: p.settledCommission
+        gmv: round2(p.gmv),
+        estCommission: round2(p.estCommission),
+        settledCommission: round2(p.settledCommission)
       }));
 
       allProducts.sort((a, b) => b[productSortBy] - a[productSortBy]);
@@ -866,7 +895,6 @@
         return;
       }
 
-      const round2 = (n) => Math.round(n * 100) / 100;
       const maxVal = Math.max(...list.map(item => item[productSortBy]), 1);
 
       const barColorMap = {
@@ -896,9 +924,9 @@
               </div>
             </td>
             <td class="py-3 px-4 text-right whitespace-nowrap font-medium text-slate-700">${item.orderCount.toLocaleString()} 筆</td>
-            <td class="py-3 px-4 text-right whitespace-nowrap text-blue-600 font-medium">$${Math.round(item.gmv).toLocaleString()}</td>
-            <td class="py-3 px-4 text-right whitespace-nowrap text-amber-600 font-semibold">$${round2(item.estCommission).toLocaleString()}</td>
-            <td class="py-3 px-4 text-right whitespace-nowrap text-emerald-600 font-semibold">$${round2(item.settledCommission).toLocaleString()}</td>
+            <td class="py-3 px-4 text-right whitespace-nowrap text-blue-600 font-medium">$${fmt2(item.gmv)}</td>
+            <td class="py-3 px-4 text-right whitespace-nowrap text-amber-600 font-semibold">$${fmt2(item.estCommission)}</td>
+            <td class="py-3 px-4 text-right whitespace-nowrap text-emerald-600 font-semibold">$${fmt2(item.settledCommission)}</td>
             <td class="py-3 px-3 text-center whitespace-nowrap">
               <button type="button" onclick="inspectRankedProduct(${idx})"
                 class="px-2.5 py-1 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-600 rounded-md text-xs font-medium transition">
@@ -959,12 +987,13 @@
         }
 
         const bucket = bucketMap.get(key);
-        const weight = (prorateCommission && entry.isPartialMatch) ? entry.ratio : 1;
+        const estVal = (prorateCommission || entry.hasPerLineEst) ? entry.matchedEst : entry.fullEst;
+        const settledWeight = (prorateCommission && entry.isPartialMatch) ? entry.ratio : 1;
 
         bucket.orders += 1;
         bucket.gmv += entry.matchedGmv;
-        bucket.est += o.estCommission * weight;
-        bucket.settled += o.settledCommission * weight;
+        bucket.est += estVal;
+        bucket.settled += o.settledCommission * settledWeight;
       }
 
       if (chartGranularity === 'daily' && selectedMonth && bucketMap.size > 0) {
@@ -988,13 +1017,12 @@
         (chartGranularity === 'daily' && selectedMonth) ? k.slice(5) : k
       );
 
-      const round2 = (n) => Math.round(n * 100) / 100;
       const orderSeries = sortedKeys.map(k => bucketMap.get(k).orders);
       const amountSeries = sortedKeys.map(k => {
         const b = bucketMap.get(k);
         if (chartAmountType === 'est') return round2(b.est);
         if (chartAmountType === 'settled') return round2(b.settled);
-        return Math.round(b.gmv);
+        return round2(b.gmv);
       });
 
       const metricMeta = {
@@ -1111,7 +1139,7 @@
                 label: (context) => {
                   const val = context.parsed.y;
                   if (context.dataset.yAxisID === 'yAmount') {
-                    return ` ${context.dataset.label}：$${val.toLocaleString()}`;
+                    return ` ${context.dataset.label}：$${fmt2(val)}`;
                   }
                   return ` ${context.dataset.label}：${val.toLocaleString()} 筆`;
                 },
@@ -1126,9 +1154,9 @@
                         : '💡 點擊可篩選該日訂單明細');
                   return [
                     '──────────────────',
-                    `有效成交額：$${Math.round(b.gmv).toLocaleString()}`,
-                    `預估分潤 ：$${round2(b.est).toLocaleString()}`,
-                    `結算總分潤：$${round2(b.settled).toLocaleString()}`,
+                    `有效成交額：$${fmt2(b.gmv)}`,
+                    `預估分潤 ：$${fmt2(b.est)}`,
+                    `結算總分潤：$${fmt2(b.settled)}`,
                     hint
                   ];
                 }
@@ -1157,7 +1185,7 @@
               },
               ticks: {
                 font: { size: 11 },
-                callback: (value) => '$' + Number(value).toLocaleString()
+                callback: (value) => '$' + fmt2(value)
               },
               grid: {
                 color: 'rgba(226, 232, 240, 0.7)'
@@ -1187,6 +1215,7 @@
       });
     }
 
+    // 下方訂單明細列表：完整保留資料庫原始小數位數 (fmtNum)
     function renderTable(hasKeyword) {
       const tbody = document.getElementById('tableBody');
       if (filteredEntries.length === 0) {
@@ -1201,16 +1230,19 @@
         const pLines = (o.productLines && o.productLines.length > 0) ? o.productLines : [o.productName || '-'];
         const qLines = (o.qtyLines && o.qtyLines.length > 0) ? o.qtyLines : [o.qty];
         const prLines = (o.priceLines && o.priceLines.length > 0) ? o.priceLines : [0];
-        const lineCount = Math.max(pLines.length, qLines.length, prLines.length);
+        const estLines = (o.estCommissionLines && o.estCommissionLines.length > 0) ? o.estCommissionLines : [o.estCommission || 0];
+        const lineCount = Math.max(pLines.length, qLines.length, prLines.length, estLines.length);
 
         let productHtml = '';
         let qtyHtml = '';
         let priceHtml = '';
+        let estHtml = '';
 
         for (let k = 0; k < lineCount; k++) {
           const name = pLines[k] !== undefined ? pLines[k] : '-';
           const q = qLines[k] !== undefined ? Number(qLines[k]) : (Number(qLines[0]) || 0);
           const p = prLines[k] !== undefined ? Number(prLines[k]) : 0;
+          const est = estLines[k] !== undefined ? Number(estLines[k]) : 0;
 
           const isMatchedLine = entry.matchedLineIndices.has(k);
           const highlight = hasKeyword && entry.isPartialMatch;
@@ -1225,9 +1257,14 @@
             ? (isMatchedLine ? 'text-blue-700 font-bold py-0.5' : 'text-slate-300')
             : 'text-slate-700';
 
+          const estClass = highlight
+            ? (isMatchedLine ? 'text-amber-600 font-bold py-0.5' : 'text-slate-300 line-through decoration-slate-300')
+            : 'text-amber-600 font-medium';
+
           productHtml += `<div class="truncate max-w-xs leading-6 ${pClass}" title="${escapeHtml(name)}">${escapeHtml(name)}</div>`;
-          qtyHtml += `<div class="leading-6 ${numClass}">${q.toLocaleString()}</div>`;
-          priceHtml += `<div class="leading-6 ${numClass}">$${p.toLocaleString()}</div>`;
+          qtyHtml += `<div class="leading-6 ${numClass}">${fmtNum(q)}</div>`;
+          priceHtml += `<div class="leading-6 ${numClass}">$${fmtNum(p)}</div>`;
+          estHtml += `<div class="leading-6 ${estClass}">$${fmtNum(est)}</div>`;
         }
 
         return `
@@ -1237,8 +1274,8 @@
             <td class="py-3 px-3">${productHtml}</td>
             <td class="py-3 px-3 text-right whitespace-nowrap">${qtyHtml}</td>
             <td class="py-3 px-3 text-right whitespace-nowrap">${priceHtml}</td>
-            <td class="py-3 px-3 text-right whitespace-nowrap text-amber-600 font-medium">$${o.estCommission.toLocaleString()}</td>
-            <td class="py-3 px-3 text-right whitespace-nowrap text-emerald-600 font-semibold">$${o.settledCommission.toLocaleString()}</td>
+            <td class="py-3 px-3 text-right whitespace-nowrap">${estHtml}</td>
+            <td class="py-3 px-3 text-right whitespace-nowrap text-emerald-600 font-semibold">$${fmtNum(o.settledCommission)}</td>
             <td class="py-3 px-3 text-center whitespace-nowrap">${getStatusBadge(o.status)}</td>
             <td class="py-3 px-3 whitespace-nowrap text-xs text-slate-500">${escapeHtml(o.subId || '-')}</td>
           </tr>
