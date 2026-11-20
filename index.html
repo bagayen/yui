@@ -138,8 +138,17 @@
     <div id="chartSection" class="hidden bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-6">
       <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
         <div>
-          <h2 class="text-base font-bold text-slate-900" id="chartTitle">每月訂單數與金額變化</h2>
-          <p class="text-xs text-slate-500 mt-0.5" id="chartSubtitle">依目前篩選條件即時統計（將滑鼠移至柱狀可檢視完整明細）</p>
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="text-base font-bold text-slate-900" id="chartTitle">每月訂單數與金額變化</h2>
+            <!-- 點擊日期柱狀鎖定時的狀態標籤 -->
+            <button type="button" id="selectedDateBadge" onclick="clearSelectedDate()"
+              class="hidden inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 hover:bg-blue-200 transition"
+              title="點擊取消日期篩選">
+              <span id="selectedDateBadgeText">已鎖定日期：2026-11-11</span>
+              <span class="text-blue-500 font-bold">✕</span>
+            </button>
+          </div>
+          <p class="text-xs text-slate-500 mt-0.5" id="chartSubtitle">點擊長條可直接下鑽月份或鎖定該日明細（再點一次取消鎖定）</p>
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
@@ -281,7 +290,8 @@
     const DEFAULT_API_TOKEN = '';
 
     let allOrders = [];
-    let filteredEntries = [];
+    let baseFilteredEntries = []; // 未套用圖表單日鎖定前的篩選結果（供日圖表維持整月柱狀）
+    let filteredEntries = [];     // 最終套用單日鎖定後的篩選結果（供卡片、排行榜、明細表）
     let displayLimit = 100;
 
     // 圖表狀態變數
@@ -289,6 +299,7 @@
     let chartGranularity = 'monthly'; // 'monthly' | 'daily'
     let chartAmountType = 'gmv';      // 'gmv' | 'est' | 'settled'
     let isChartCollapsed = false;
+    let selectedDateFilter = '';      // 點擊日長條鎖定的日期（格式 YYYY-MM-DD）
 
     // 主分頁與熱銷單品排行狀態
     let activeMainTab = 'orders';        // 'orders' | 'topProducts'
@@ -454,21 +465,41 @@
 
     function onMonthFilterChange() {
       const selectedMonth = document.getElementById('monthFilter').value;
+      selectedDateFilter = '';
       chartGranularity = selectedMonth ? 'daily' : 'monthly';
       updateChartControlButtons();
       applyFilters();
     }
 
+    function clearSelectedDate() {
+      selectedDateFilter = '';
+      applyFilters();
+    }
+
+    function updateSelectedDateBadge() {
+      const badgeEl = document.getElementById('selectedDateBadge');
+      const textEl = document.getElementById('selectedDateBadgeText');
+      if (selectedDateFilter) {
+        textEl.textContent = `已鎖定日期：${selectedDateFilter}`;
+        badgeEl.classList.remove('hidden');
+      } else {
+        badgeEl.classList.add('hidden');
+      }
+    }
+
     function setChartGranularity(mode) {
       chartGranularity = mode;
+      if (mode === 'monthly') {
+        selectedDateFilter = '';
+      }
       updateChartControlButtons();
-      updateTrendChart(filteredEntries);
+      applyFilters();
     }
 
     function setChartAmountType(type) {
       chartAmountType = type;
       updateChartControlButtons();
-      updateTrendChart(filteredEntries);
+      updateTrendChart(baseFilteredEntries);
     }
 
     function toggleChartBody() {
@@ -481,7 +512,7 @@
       } else {
         bodyEl.classList.remove('hidden');
         btnEl.textContent = '收合圖表';
-        updateTrendChart(filteredEntries);
+        updateTrendChart(baseFilteredEntries);
       }
     }
 
@@ -607,7 +638,7 @@
       const selectedStatus = document.getElementById('statusFilter').value;
       const selectedSubId = document.getElementById('subIdFilter').value;
 
-      filteredEntries = [];
+      baseFilteredEntries = [];
 
       for (let i = 0; i < allOrders.length; i++) {
         const item = allOrders[i];
@@ -617,18 +648,28 @@
 
         const evalRes = evaluateOrderMatch(item, keywords);
         if (evalRes.matched) {
-          filteredEntries.push({
+          baseFilteredEntries.push({
             order: item,
             ...evalRes
           });
         }
       }
 
+      // 若有在日圖表點擊鎖定特定日期，則進一步過濾下方卡片、排行榜與明細
+      if (selectedDateFilter) {
+        filteredEntries = baseFilteredEntries.filter(
+          entry => getTimeBucketKey(entry.order, 'daily') === selectedDateFilter
+        );
+      } else {
+        filteredEntries = baseFilteredEntries;
+      }
+
       displayLimit = 100;
       document.getElementById('tabBadgeOrders').textContent = filteredEntries.length.toLocaleString();
+      updateSelectedDateBadge();
 
       updateSummaryCards(filteredEntries, keywords.length > 0);
-      updateTrendChart(filteredEntries);
+      updateTrendChart(baseFilteredEntries);
       updateTopProducts(filteredEntries);
       renderTable(keywords.length > 0);
     }
@@ -919,10 +960,32 @@
       });
 
       const metricMeta = {
-        gmv: { label: '有效成交額 ($)', bg: 'rgba(37, 99, 235, 0.82)', border: 'rgb(37, 99, 235)' },
-        est: { label: '預估分潤 ($)', bg: 'rgba(217, 119, 6, 0.82)', border: 'rgb(217, 119, 6)' },
-        settled: { label: '結算總分潤 ($)', bg: 'rgba(5, 150, 105, 0.82)', border: 'rgb(5, 150, 105)' }
+        gmv: {
+          label: '有效成交額 ($)',
+          rgb: '37, 99, 235',
+          border: 'rgb(37, 99, 235)'
+        },
+        est: {
+          label: '預估分潤 ($)',
+          rgb: '217, 119, 6',
+          border: 'rgb(217, 119, 6)'
+        },
+        settled: {
+          label: '結算總分潤 ($)',
+          rgb: '5, 150, 105',
+          border: 'rgb(5, 150, 105)'
+        }
       }[chartAmountType];
+
+      // 當有鎖定單日篩選時，高亮該日柱子並淡化其他日期
+      const amountBgColors = sortedKeys.map(k => {
+        const isDimmed = selectedDateFilter && k !== selectedDateFilter;
+        return `rgba(${metricMeta.rgb}, ${isDimmed ? 0.2 : 0.85})`;
+      });
+      const orderBgColors = sortedKeys.map(k => {
+        const isDimmed = selectedDateFilter && k !== selectedDateFilter;
+        return `rgba(100, 116, 139, ${isDimmed ? 0.14 : 0.45})`;
+      });
 
       document.getElementById('chartTitle').textContent =
         `${chartGranularity === 'monthly' ? '每月' : '每日'}訂單數與${metricMeta.label.replace(' ($)', '')}變化`;
@@ -941,7 +1004,7 @@
             {
               label: metricMeta.label,
               data: amountSeries,
-              backgroundColor: metricMeta.bg,
+              backgroundColor: amountBgColors,
               borderColor: metricMeta.border,
               borderWidth: 1,
               borderRadius: 4,
@@ -951,7 +1014,7 @@
             {
               label: '訂單數 (筆)',
               data: orderSeries,
-              backgroundColor: 'rgba(100, 116, 139, 0.45)',
+              backgroundColor: orderBgColors,
               borderColor: 'rgb(71, 85, 105)',
               borderWidth: 1,
               borderRadius: 4,
@@ -966,6 +1029,31 @@
           interaction: {
             mode: 'index',
             intersect: false
+          },
+          // 滑鼠移至柱狀時顯示可點擊游標
+          onHover: (event, elements) => {
+            if (event.native && event.native.target) {
+              event.native.target.style.cursor = elements.length > 0 ? 'pointer' : 'default';
+            }
+          },
+          // 點擊長條互動：按月模式下鑽該月；按日模式鎖定/解鎖該日明細
+          onClick: (event, elements) => {
+            if (!elements || elements.length === 0) return;
+            const index = elements[0].index;
+            const clickedKey = sortedKeys[index];
+            if (!clickedKey) return;
+
+            if (chartGranularity === 'monthly') {
+              const monthSelect = document.getElementById('monthFilter');
+              const hasOption = Array.from(monthSelect.options).some(opt => opt.value === clickedKey);
+              if (hasOption) {
+                monthSelect.value = clickedKey;
+                onMonthFilterChange();
+              }
+            } else {
+              selectedDateFilter = (selectedDateFilter === clickedKey) ? '' : clickedKey;
+              applyFilters();
+            }
           },
           plugins: {
             legend: {
@@ -994,12 +1082,19 @@
                 },
                 afterBody: (items) => {
                   const idx = items[0].dataIndex;
-                  const b = bucketMap.get(sortedKeys[idx]);
+                  const key = sortedKeys[idx];
+                  const b = bucketMap.get(key);
+                  const hint = chartGranularity === 'monthly'
+                    ? '💡 點擊可下鑽檢視該月每日明細'
+                    : (selectedDateFilter === key
+                        ? '💡 再點一次可取消日期鎖定'
+                        : '💡 點擊可篩選該日訂單明細');
                   return [
                     '──────────────────',
                     `有效成交額：$${Math.round(b.gmv).toLocaleString()}`,
                     `預估分潤 ：$${round2(b.est).toLocaleString()}`,
-                    `結算總分潤：$${round2(b.settled).toLocaleString()}`
+                    `結算總分潤：$${round2(b.settled).toLocaleString()}`,
+                    hint
                   ];
                 }
               }
@@ -1138,6 +1233,7 @@
       document.getElementById('monthFilter').value = '';
       document.getElementById('statusFilter').value = '';
       document.getElementById('subIdFilter').value = '';
+      selectedDateFilter = '';
       chartGranularity = 'monthly';
       updateChartControlButtons();
       applyFilters();
