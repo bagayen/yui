@@ -148,10 +148,10 @@
       </div>
     </div>
 
-    <!-- 雙圖表分析區塊：左側「每月/每日趨勢條狀圖」 + 右側「每日下單時間分佈線圖」 -->
+    <!-- 雙圖表分析區塊：左側「每月/每日趨勢條狀圖」 + 右側「每日下單時間分佈線圖 & 自訂時段區間」 -->
     <div id="chartSection" class="hidden grid grid-cols-1 xl:grid-cols-12 gap-6 mb-6">
       <!-- 左側：每月 / 每日條狀圖 -->
-      <div class="xl:col-span-7 bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col">
+      <div class="xl:col-span-6 bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col">
         <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
           <div>
             <div class="flex flex-wrap items-center gap-2">
@@ -200,14 +200,14 @@
           </div>
         </div>
 
-        <div id="chartBody" class="relative h-72 w-full">
+        <div id="chartBody" class="relative flex-1 min-h-[18rem] w-full">
           <canvas id="trendBarChart"></canvas>
         </div>
       </div>
 
-      <!-- 右側：每日下單時間分佈線圖（24 小時） -->
-      <div class="xl:col-span-5 bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+      <!-- 右側：每日下單時間分佈線圖（24 小時 + 自訂時段區間篩選） -->
+      <div class="xl:col-span-6 bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
           <div>
             <div class="flex flex-wrap items-center gap-2">
               <h2 class="text-base font-bold text-slate-900">每日下單時間分佈</h2>
@@ -215,14 +215,14 @@
                 class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-violet-50 text-violet-700 border border-violet-200">
                 尖峰：--:--
               </span>
-              <button type="button" id="selectedHourBadge" onclick="clearSelectedHour()"
+              <button type="button" id="selectedHourBadge" onclick="clearHourRange()"
                 class="hidden inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 hover:bg-amber-200 transition"
-                title="點擊取消時段篩選">
-                <span id="selectedHourBadgeText">已鎖定時段：22:00</span>
+                title="點擊取消時段區間篩選">
+                <span id="selectedHourBadgeText">已鎖定時段：22:00~01:59</span>
                 <span class="text-amber-600 font-bold">✕</span>
               </button>
             </div>
-            <p class="text-xs text-slate-500 mt-0.5">24 小時下單熱度曲線（點擊節點可篩選該小時訂單）</p>
+            <p class="text-xs text-slate-500 mt-0.5">可點擊單一節點，或框選起訖小時比較帶貨檔期與長尾貢獻</p>
           </div>
 
           <div class="flex flex-wrap items-center gap-2">
@@ -248,8 +248,112 @@
           </div>
         </div>
 
-        <div id="hourlyChartBody" class="relative h-72 w-full">
+        <!-- 自訂時段區間與快選列 -->
+        <div id="hourlyFilterBar" class="mb-3 p-2.5 bg-slate-50 border border-slate-200/80 rounded-lg flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="text-slate-500 font-medium">時段區間：</span>
+            <select id="hourStartSelect" onchange="onHourSelectChange()"
+              class="px-2 py-1 bg-white border border-slate-300 rounded text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500">
+              <option value="">起始</option>
+            </select>
+            <span class="text-slate-400">～</span>
+            <select id="hourEndSelect" onchange="onHourSelectChange()"
+              class="px-2 py-1 bg-white border border-slate-300 rounded text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500">
+              <option value="">結束</option>
+            </select>
+            <button type="button" id="btnClearHourRange" onclick="clearHourRange()"
+              class="hidden px-2 py-1 bg-white hover:bg-slate-100 border border-slate-300 rounded text-slate-600 transition">
+              全天
+            </button>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-1">
+            <button type="button" id="presetHourLive" onclick="setHourRange(22, 1)"
+              class="px-2 py-1 rounded border border-slate-200 bg-white text-slate-600 hover:bg-violet-50 hover:text-violet-700 hover:border-violet-200 transition">
+              晚間帶貨 22~01
+            </button>
+            <button type="button" id="presetHourPrime" onclick="setHourRange(20, 23)"
+              class="px-2 py-1 rounded border border-slate-200 bg-white text-slate-600 hover:bg-violet-50 hover:text-violet-700 hover:border-violet-200 transition">
+              夜間 20~23
+            </button>
+            <button type="button" id="presetHourDay" onclick="setHourRange(8, 19)"
+              class="px-2 py-1 rounded border border-slate-200 bg-white text-slate-600 hover:bg-violet-50 hover:text-violet-700 hover:border-violet-200 transition">
+              日間長尾 08~19
+            </button>
+          </div>
+        </div>
+
+        <!-- 時段貢獻比例提示列（鎖定區間時顯示） -->
+        <div id="hourContributionBar" class="hidden mb-3 px-3 py-2 rounded-lg bg-violet-50 border border-violet-200 text-xs text-violet-900 flex flex-wrap items-center justify-between gap-2">
+          <span class="font-semibold" id="hourContributionTitle">區間貢獻佔比：</span>
+          <span id="hourContributionDetail" class="font-mono text-violet-800">訂單 0%｜成交額 0%｜預估分潤 0%</span>
+        </div>
+
+        <div id="hourlyChartBody" class="relative flex-1 min-h-[15rem] w-full">
           <canvas id="hourlyOrderLineChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- 星期一至星期日買氣分佈分析區塊 -->
+    <div id="weekdaySection" class="hidden bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-6">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+        <div>
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="text-base font-bold text-slate-900">星期一至星期日買氣分佈</h2>
+            <span id="bestWeekdayBadge"
+              class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+              日均買氣最旺：--
+            </span>
+            <button type="button" id="selectedWeekdayBadge" onclick="clearSelectedWeekday()"
+              class="hidden inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition"
+              title="點擊取消星期篩選">
+              <span id="selectedWeekdayBadgeText">已鎖定：週三</span>
+              <span class="font-bold">✕</span>
+            </button>
+          </div>
+          <p class="text-xs text-slate-500 mt-0.5">依實際日曆天數計算一週七天「日均單量」與「平均客單價」（點擊長條或表格列可篩選該星期明細）</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="inline-flex rounded-lg bg-slate-100 p-1 text-xs font-medium">
+            <button type="button" id="btnWeekdayModeAvg" onclick="setWeekdayChartMode('avg')"
+              class="px-2.5 py-1.5 rounded-md bg-white text-indigo-700 shadow-sm transition">
+              日均單量 & 客單價
+            </button>
+            <button type="button" id="btnWeekdayModeTotal" onclick="setWeekdayChartMode('total')"
+              class="px-2.5 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition">
+              累計成交 & 預估分潤
+            </button>
+          </div>
+
+          <button type="button" onclick="toggleWeekdayBody()" id="btnToggleWeekday"
+            class="px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 hover:bg-slate-50 transition">
+            收合
+          </button>
+        </div>
+      </div>
+
+      <div id="weekdayBody" class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+        <!-- 左側：一週七天雙軸圖表 -->
+        <div class="lg:col-span-7 relative h-64 w-full">
+          <canvas id="weekdayBarChart"></canvas>
+        </div>
+
+        <!-- 右側：星期一至星期日精簡對照表 -->
+        <div class="lg:col-span-5 overflow-x-auto border border-slate-200 rounded-lg">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="bg-slate-100 border-b border-slate-200 font-semibold text-slate-600">
+                <th class="py-2 px-3">星期</th>
+                <th class="py-2 px-2 text-right">天數</th>
+                <th class="py-2 px-2 text-right">日均單量</th>
+                <th class="py-2 px-2 text-right">平均客單價</th>
+                <th class="py-2 px-3 text-right">累計成交額</th>
+              </tr>
+            </thead>
+            <tbody id="weekdayTableBody" class="divide-y divide-slate-100"></tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -362,6 +466,7 @@
     let allOrders = [];
     let baseFilteredEntries = [];
     let dateFilteredEntries = [];
+    let weekdayFilteredEntries = [];
     let filteredEntries = [];
     let displayLimit = 100;
 
@@ -372,11 +477,28 @@
     let isChartCollapsed = false;
     let selectedDateFilter = '';
 
-    // 右側每日下單時間線圖狀態變數
+    // 右側每日下單時間線圖與區間篩選狀態變數
     let hourlyChartInstance = null;
     let hourlyMetricType = 'orders';  // 'orders' | 'gmv' | 'est'
     let isHourlyChartCollapsed = false;
-    let selectedHourFilter = null;    // null 或 0~23 整數
+    let hourRangeFilter = null;       // null 或 { start: 0~23, end: 0~23 }
+
+    // 星期一至星期日買氣分佈狀態變數
+    let weekdayChartInstance = null;
+    let weekdayChartMode = 'avg';     // 'avg' | 'total'
+    let isWeekdayCollapsed = false;
+    let selectedWeekdayFilter = null; // null 或 0~6 (0=週日, 1=週一 ... 6=週六)
+
+    const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+    const WEEKDAY_NAMES = {
+      1: '週一',
+      2: '週二',
+      3: '週三',
+      4: '週四',
+      5: '週五',
+      6: '週六',
+      0: '週日'
+    };
 
     // 主分頁與熱銷單品排行狀態
     let activeMainTab = 'orders';        // 'orders' | 'topProducts'
@@ -387,11 +509,13 @@
     const cleanNum = (n) => Math.round((Number(n) || 0) * 1e10) / 1e10;
     const fmtNum = (n) => cleanNum(n).toLocaleString(undefined, { maximumFractionDigits: 10 });
 
-    // 四捨五入至小數點後兩位（供統計面板、圖表與排行榜計算加總使用）
+    // 四捨五入至小數點後兩位（供統計面板、圖表、星期買氣與排行榜計算加總使用）
     const round2 = (n) => Math.round(((Number(n) || 0) + Number.EPSILON) * 100) / 100;
     const fmt2 = (n) => round2(n).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
     window.onload = function() {
+      initHourRangeDropdowns();
+
       const savedUrl = localStorage.getItem('gas_order_api_url') || DEFAULT_GAS_API_URL;
       const savedToken = localStorage.getItem('gas_order_api_token') || DEFAULT_API_TOKEN;
 
@@ -407,6 +531,16 @@
       }
       loadData();
     };
+
+    function initHourRangeDropdowns() {
+      const startSel = document.getElementById('hourStartSelect');
+      const endSel = document.getElementById('hourEndSelect');
+      for (let h = 0; h < 24; h++) {
+        const hh = String(h).padStart(2, '0');
+        startSel.innerHTML += `<option value="${h}">${hh}:00</option>`;
+        endSel.innerHTML += `<option value="${h}">${hh}:59</option>`;
+      }
+    }
 
     function toggleConfigModal() {
       document.getElementById('configPanel').classList.toggle('hidden');
@@ -428,7 +562,9 @@
     function onLoadRangeChange() {
       document.getElementById('monthFilter').value = '';
       selectedDateFilter = '';
-      selectedHourFilter = null;
+      selectedWeekdayFilter = null;
+      hourRangeFilter = null;
+      syncHourRangeControls();
       chartGranularity = 'monthly';
       updateChartControlButtons();
       loadData();
@@ -497,6 +633,7 @@
 
         loadingEl.classList.add('hidden');
         document.getElementById('chartSection').classList.remove('hidden');
+        document.getElementById('weekdaySection').classList.remove('hidden');
         document.getElementById('viewSwitcherBar').classList.remove('hidden');
         switchMainTab(activeMainTab);
       } catch (err) {
@@ -606,20 +743,132 @@
       }
     }
 
-    function clearSelectedHour() {
-      selectedHourFilter = null;
+    // 自訂時段區間控制函式
+    function isHourInRange(hour, range) {
+      if (!range) return true;
+      if (hour < 0 || hour > 23) return false;
+      if (range.start <= range.end) {
+        return hour >= range.start && hour <= range.end;
+      }
+      // 跨午夜區間（例如 22 ~ 1 代表 22, 23, 0, 1）
+      return hour >= range.start || hour <= range.end;
+    }
+
+    function formatHourRangeText(range) {
+      if (!range) return '';
+      const s = String(range.start).padStart(2, '0');
+      const e = String(range.end).padStart(2, '0');
+      return `${s}:00~${e}:59`;
+    }
+
+    function setHourRange(start, end) {
+      if (hourRangeFilter && hourRangeFilter.start === start && hourRangeFilter.end === end) {
+        clearHourRange();
+        return;
+      }
+      hourRangeFilter = { start: Number(start), end: Number(end) };
+      syncHourRangeControls();
       applyFilters();
     }
 
-    function updateSelectedHourBadge() {
+    function clearHourRange() {
+      hourRangeFilter = null;
+      syncHourRangeControls();
+      applyFilters();
+    }
+
+    function onHourSelectChange() {
+      const startVal = document.getElementById('hourStartSelect').value;
+      const endVal = document.getElementById('hourEndSelect').value;
+      if (startVal === '' && endVal === '') {
+        clearHourRange();
+        return;
+      }
+      const s = startVal !== '' ? Number(startVal) : Number(endVal);
+      const e = endVal !== '' ? Number(endVal) : Number(startVal);
+      hourRangeFilter = { start: s, end: e };
+      syncHourRangeControls();
+      applyFilters();
+    }
+
+    function syncHourRangeControls() {
+      const startSel = document.getElementById('hourStartSelect');
+      const endSel = document.getElementById('hourEndSelect');
+      const clearBtn = document.getElementById('btnClearHourRange');
       const badgeEl = document.getElementById('selectedHourBadge');
-      const textEl = document.getElementById('selectedHourBadgeText');
-      if (selectedHourFilter !== null) {
-        const hh = String(selectedHourFilter).padStart(2, '0');
-        textEl.textContent = `已鎖定時段：${hh}:00~${hh}:59`;
+      const badgeTextEl = document.getElementById('selectedHourBadgeText');
+
+      const presetDefault = 'px-2 py-1 rounded border border-slate-200 bg-white text-slate-600 hover:bg-violet-50 hover:text-violet-700 hover:border-violet-200 transition';
+      const presetActive = 'px-2 py-1 rounded border border-violet-300 bg-violet-600 text-white font-semibold transition';
+
+      document.getElementById('presetHourLive').className =
+        (hourRangeFilter && hourRangeFilter.start === 22 && hourRangeFilter.end === 1) ? presetActive : presetDefault;
+      document.getElementById('presetHourPrime').className =
+        (hourRangeFilter && hourRangeFilter.start === 20 && hourRangeFilter.end === 23) ? presetActive : presetDefault;
+      document.getElementById('presetHourDay').className =
+        (hourRangeFilter && hourRangeFilter.start === 8 && hourRangeFilter.end === 19) ? presetActive : presetDefault;
+
+      if (hourRangeFilter) {
+        startSel.value = String(hourRangeFilter.start);
+        endSel.value = String(hourRangeFilter.end);
+        clearBtn.classList.remove('hidden');
+        badgeTextEl.textContent = `已鎖定時段：${formatHourRangeText(hourRangeFilter)}`;
+        badgeEl.classList.remove('hidden');
+      } else {
+        startSel.value = '';
+        endSel.value = '';
+        clearBtn.classList.add('hidden');
+        badgeEl.classList.add('hidden');
+      }
+    }
+
+    // 星期一至星期日控制函式
+    function clearSelectedWeekday() {
+      selectedWeekdayFilter = null;
+      applyFilters();
+    }
+
+    function toggleWeekdaySelection(dayIdx) {
+      selectedWeekdayFilter = (selectedWeekdayFilter === dayIdx) ? null : dayIdx;
+      selectedDateFilter = ''; // 鎖定星期幾時解除單日鎖定，避免衝突
+      applyFilters();
+    }
+
+    function updateSelectedWeekdayBadge() {
+      const badgeEl = document.getElementById('selectedWeekdayBadge');
+      const textEl = document.getElementById('selectedWeekdayBadgeText');
+      if (selectedWeekdayFilter !== null) {
+        textEl.textContent = `已鎖定：${WEEKDAY_NAMES[selectedWeekdayFilter]}`;
         badgeEl.classList.remove('hidden');
       } else {
         badgeEl.classList.add('hidden');
+      }
+    }
+
+    function setWeekdayChartMode(mode) {
+      weekdayChartMode = mode;
+      const activeClass = 'px-2.5 py-1.5 rounded-md bg-white text-indigo-700 shadow-sm transition';
+      const inactiveClass = 'px-2.5 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition';
+
+      document.getElementById('btnWeekdayModeAvg').className =
+        mode === 'avg' ? activeClass : inactiveClass;
+      document.getElementById('btnWeekdayModeTotal').className =
+        mode === 'total' ? activeClass : inactiveClass;
+
+      updateWeekdayChart(dateFilteredEntries);
+    }
+
+    function toggleWeekdayBody() {
+      isWeekdayCollapsed = !isWeekdayCollapsed;
+      const bodyEl = document.getElementById('weekdayBody');
+      const btnEl = document.getElementById('btnToggleWeekday');
+      if (isWeekdayCollapsed) {
+        bodyEl.classList.add('hidden');
+        btnEl.textContent = '展開';
+      } else {
+        bodyEl.classList.remove('hidden');
+        btnEl.textContent = '收合';
+        updateWeekdayChart(dateFilteredEntries);
       }
     }
 
@@ -668,20 +917,24 @@
       document.getElementById('btnHourlyMetricEst').className =
         hourlyMetricType === 'est' ? activeMap.est : inactiveClass;
 
-      updateHourlyChart(dateFilteredEntries);
+      updateHourlyChart(weekdayFilteredEntries);
     }
 
     function toggleHourlyChartBody() {
       isHourlyChartCollapsed = !isHourlyChartCollapsed;
       const bodyEl = document.getElementById('hourlyChartBody');
+      const filterBarEl = document.getElementById('hourlyFilterBar');
       const btnEl = document.getElementById('btnToggleHourlyChart');
       if (isHourlyChartCollapsed) {
         bodyEl.classList.add('hidden');
+        filterBarEl.classList.add('hidden');
+        document.getElementById('hourContributionBar').classList.add('hidden');
         btnEl.textContent = '展開';
       } else {
         bodyEl.classList.remove('hidden');
+        filterBarEl.classList.remove('hidden');
         btnEl.textContent = '收合';
-        updateHourlyChart(dateFilteredEntries);
+        updateHourlyChart(weekdayFilteredEntries);
       }
     }
 
@@ -833,7 +1086,6 @@
         if (selectedStatus && item.status !== selectedStatus) continue;
         if (selectedSubId && item.subId !== selectedSubId) continue;
 
-        // 抓漏 $0 分潤時，若同時勾選排除 CANCELLED，直接過濾掉已取消訂單
         const isCancelled = String(item.status || '').trim().toUpperCase() === 'CANCELLED';
         if (onlyZeroEst && excludeCancelled && isCancelled) continue;
 
@@ -846,7 +1098,7 @@
         }
       }
 
-      // 第一層：套用日期鎖定（供「每日下單時間分佈線圖」使用）
+      // 第一層：套用單日鎖定（供「星期一至星期日買氣分佈」使用）
       if (selectedDateFilter) {
         dateFilteredEntries = baseFilteredEntries.filter(
           entry => getTimeBucketKey(entry.order, 'daily') === selectedDateFilter
@@ -855,24 +1107,35 @@
         dateFilteredEntries = baseFilteredEntries;
       }
 
-      // 第二層：套用小時鎖定（供統計卡片、排行榜與訂單明細表使用）
-      if (selectedHourFilter !== null) {
-        filteredEntries = dateFilteredEntries.filter(
-          entry => extractOrderHour(entry.order.orderTime) === selectedHourFilter
+      // 第二層：套用星期幾鎖定（供「每日下單時間分佈」與貢獻佔比分母使用）
+      if (selectedWeekdayFilter !== null) {
+        weekdayFilteredEntries = dateFilteredEntries.filter(
+          entry => extractOrderWeekday(entry.order.orderTime) === selectedWeekdayFilter
         );
       } else {
-        filteredEntries = dateFilteredEntries;
+        weekdayFilteredEntries = dateFilteredEntries;
+      }
+
+      // 第三層：套用小時區間鎖定（供統計卡片、排行榜與訂單明細表使用）
+      if (hourRangeFilter) {
+        filteredEntries = weekdayFilteredEntries.filter(
+          entry => isHourInRange(extractOrderHour(entry.order.orderTime), hourRangeFilter)
+        );
+      } else {
+        filteredEntries = weekdayFilteredEntries;
       }
 
       displayLimit = 100;
       const hasLineFilter = keywords.length > 0 || onlyZeroEst;
       document.getElementById('tabBadgeOrders').textContent = filteredEntries.length.toLocaleString();
       updateSelectedDateBadge();
-      updateSelectedHourBadge();
+      updateSelectedWeekdayBadge();
+      syncHourRangeControls();
 
       updateSummaryCards(filteredEntries, hasLineFilter, onlyZeroEst);
       updateTrendChart(baseFilteredEntries);
-      updateHourlyChart(dateFilteredEntries);
+      updateWeekdayChart(dateFilteredEntries);
+      updateHourlyChart(weekdayFilteredEntries);
       updateTopProducts(filteredEntries);
       renderTable(hasLineFilter);
     }
@@ -962,7 +1225,7 @@
           : `訂單完成率 ${completionRate}%（共 ${totalOrders} 筆總單）`;
     }
 
-    // 熱銷單品排行榜：計算「最高表觀分潤率」以過濾折價券干擾並找出真低佣商品
+    // 熱銷單品排行榜
     function updateTopProducts(entries) {
       const excludeCancelled = document.getElementById('excludeCancelledCheck').checked;
       const productMap = new Map();
@@ -1070,7 +1333,6 @@
 
         const pct = Math.max(2, Math.round((item[barMetricKey] / maxVal) * 100));
 
-        // 最高表觀分潤率標籤樣式（0% 紅色警示、低於 1.5% 琥珀色提醒）
         let rateBadgeClass = 'bg-slate-100 text-slate-700';
         if (item.maxRate === 0) rateBadgeClass = 'bg-rose-100 text-rose-700 font-bold';
         else if (item.maxRate < 1.5) rateBadgeClass = 'bg-amber-100 text-amber-800 font-semibold';
@@ -1127,6 +1389,14 @@
         }
         return order.month ? `${order.month}-01` : '未知日期';
       }
+    }
+
+    function extractOrderWeekday(rawTime) {
+      const str = String(rawTime || '').trim();
+      const m = str.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+      if (!m) return -1;
+      const dt = new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
+      return isNaN(dt.getTime()) ? -1 : dt.getDay();
     }
 
     function extractOrderHour(rawTime) {
@@ -1294,6 +1564,7 @@
               }
             } else {
               selectedDateFilter = (selectedDateFilter === clickedKey) ? '' : clickedKey;
+              selectedWeekdayFilter = null;
               applyFilters();
             }
           },
@@ -1394,7 +1665,7 @@
       });
     }
 
-    // 右側：每日 24 小時下單時間分佈線圖
+    // 右側：每日 24 小時下單時間分佈線圖 + 區間貢獻計算
     function updateHourlyChart(entries) {
       const excludeCancelled = document.getElementById('excludeCancelledCheck').checked;
       const prorateCommission = document.getElementById('prorateCommissionCheck').checked;
@@ -1408,6 +1679,12 @@
       }));
 
       let totalValidOrders = 0;
+      let totalValidGmv = 0;
+      let totalValidEst = 0;
+
+      let rangeOrders = 0;
+      let rangeGmv = 0;
+      let rangeEst = 0;
 
       for (let i = 0; i < entries.length; i++) {
         const entry = entries[i];
@@ -1426,7 +1703,32 @@
         bucket.gmv += entry.matchedGmv;
         bucket.est += estVal;
         bucket.settled += o.settledCommission * settledWeight;
+
         totalValidOrders += 1;
+        totalValidGmv += entry.matchedGmv;
+        totalValidEst += estVal;
+
+        if (hourRangeFilter && isHourInRange(hour, hourRangeFilter)) {
+          rangeOrders += 1;
+          rangeGmv += entry.matchedGmv;
+          rangeEst += estVal;
+        }
+      }
+
+      // 更新區間貢獻佔比提示列
+      const contribBar = document.getElementById('hourContributionBar');
+      if (hourRangeFilter && !isHourlyChartCollapsed) {
+        const orderPct = totalValidOrders > 0 ? ((rangeOrders / totalValidOrders) * 100).toFixed(1) : '0.0';
+        const gmvPct = totalValidGmv > 0 ? ((rangeGmv / totalValidGmv) * 100).toFixed(1) : '0.0';
+        const estPct = totalValidEst > 0 ? ((rangeEst / totalValidEst) * 100).toFixed(1) : '0.0';
+
+        document.getElementById('hourContributionTitle').textContent =
+          `${formatHourRangeText(hourRangeFilter)} 佔全天比例：`;
+        document.getElementById('hourContributionDetail').textContent =
+          `訂單 ${orderPct}% (${rangeOrders} 筆)｜成交額 ${gmvPct}% ($${fmt2(rangeGmv)})｜預估分潤 ${estPct}% ($${fmt2(rangeEst)})`;
+        contribBar.classList.remove('hidden');
+      } else {
+        contribBar.classList.add('hidden');
       }
 
       const metricConfig = {
@@ -1474,14 +1776,14 @@
 
       const labels = hourlyBuckets.map(b => `${String(b.hour).padStart(2, '0')}:00`);
       const pointRadii = hourlyBuckets.map((b, idx) => {
-        if (selectedHourFilter !== null) {
-          return idx === selectedHourFilter ? 7 : 2.5;
+        if (hourRangeFilter) {
+          return isHourInRange(idx, hourRangeFilter) ? 5.5 : 2.5;
         }
         return (maxVal > 0 && seriesData[idx] === maxVal) ? 5.5 : 3;
       });
       const pointColors = hourlyBuckets.map((b, idx) => {
-        if (selectedHourFilter !== null) {
-          return idx === selectedHourFilter ? '#f59e0b' : 'rgba(148, 163, 184, 0.55)';
+        if (hourRangeFilter) {
+          return isHourInRange(idx, hourRangeFilter) ? '#f59e0b' : 'rgba(148, 163, 184, 0.45)';
         }
         return (maxVal > 0 && seriesData[idx] === maxVal) ? '#f59e0b' : metricConfig.pointHex;
       });
@@ -1527,8 +1829,7 @@
           onClick: (event, elements) => {
             if (!elements || elements.length === 0) return;
             const clickedHour = elements[0].index;
-            selectedHourFilter = (selectedHourFilter === clickedHour) ? null : clickedHour;
-            applyFilters();
+            setHourRange(clickedHour, clickedHour);
           },
           plugins: {
             legend: {
@@ -1552,9 +1853,10 @@
                 afterBody: (items) => {
                   const h = items[0].dataIndex;
                   const b = hourlyBuckets[h];
-                  const hint = selectedHourFilter === h
+                  const isSingleLocked = hourRangeFilter && hourRangeFilter.start === h && hourRangeFilter.end === h;
+                  const hint = isSingleLocked
                     ? '💡 再點一次可取消時段鎖定'
-                    : '💡 點擊可篩選該時段訂單明細';
+                    : '💡 點擊可單獨鎖定該小時明細';
                   return [
                     `有效成交額：$${fmt2(b.gmv)}`,
                     `預估分潤 ：$${fmt2(b.est)}`,
@@ -1587,6 +1889,249 @@
               },
               grid: {
                 color: 'rgba(226, 232, 240, 0.7)'
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // 星期一至星期日買氣分佈分析
+    function updateWeekdayChart(entries) {
+      const excludeCancelled = document.getElementById('excludeCancelledCheck').checked;
+      const prorateCommission = document.getElementById('prorateCommissionCheck').checked;
+
+      const dayStatsMap = new Map();
+      WEEKDAY_ORDER.forEach(d => {
+        dayStatsMap.set(d, {
+          dayIdx: d,
+          label: WEEKDAY_NAMES[d],
+          dateSet: new Set(),
+          orders: 0,
+          gmv: 0,
+          est: 0,
+          settled: 0
+        });
+      });
+
+      for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i];
+        const o = entry.order;
+        const isCancelled = String(o.status || '').trim().toUpperCase() === 'CANCELLED';
+        if (excludeCancelled && isCancelled) continue;
+
+        const dayIdx = extractOrderWeekday(o.orderTime);
+        if (!dayStatsMap.has(dayIdx)) continue;
+
+        const bucket = dayStatsMap.get(dayIdx);
+        const dateKey = getTimeBucketKey(o, 'daily');
+        if (dateKey && dateKey !== '未知日期') {
+          bucket.dateSet.add(dateKey);
+        }
+
+        const estVal = (prorateCommission || entry.hasPerLineEst) ? entry.matchedEst : entry.fullEst;
+        const settledWeight = (prorateCommission && entry.isPartialMatch) ? entry.ratio : 1;
+
+        bucket.orders += 1;
+        bucket.gmv += entry.matchedGmv;
+        bucket.est += estVal;
+        bucket.settled += o.settledCommission * settledWeight;
+      }
+
+      const orderedStats = WEEKDAY_ORDER.map(d => {
+        const b = dayStatsMap.get(d);
+        const activeDays = b.dateSet.size;
+        const avgOrders = activeDays > 0 ? round2(b.orders / activeDays) : 0;
+        const avgGmv = activeDays > 0 ? round2(b.gmv / activeDays) : 0;
+        const aov = b.orders > 0 ? Math.round(b.gmv / b.orders) : 0;
+        return {
+          ...b,
+          activeDays,
+          avgOrders,
+          avgGmv,
+          aov,
+          gmvRounded: round2(b.gmv),
+          estRounded: round2(b.est),
+          settledRounded: round2(b.settled)
+        };
+      });
+
+      // 更新「日均買氣最旺」徽章
+      const bestBadge = document.getElementById('bestWeekdayBadge');
+      const maxAvgOrders = Math.max(...orderedStats.map(s => s.avgOrders), 0);
+      if (maxAvgOrders > 0) {
+        const bestDay = orderedStats.find(s => s.avgOrders === maxAvgOrders);
+        bestBadge.textContent = `日均買氣最旺：${bestDay.label} (日均 ${fmt2(bestDay.avgOrders)} 筆｜客單 $${bestDay.aov.toLocaleString()})`;
+      } else {
+        bestBadge.textContent = '日均買氣最旺：--';
+      }
+
+      if (isWeekdayCollapsed) return;
+
+      // 渲染右側 7 天精簡對照表
+      const tbody = document.getElementById('weekdayTableBody');
+      tbody.innerHTML = orderedStats.map(s => {
+        const isSelected = selectedWeekdayFilter === s.dayIdx;
+        const isBest = maxAvgOrders > 0 && s.avgOrders === maxAvgOrders;
+        const rowClass = isSelected
+          ? 'bg-indigo-50/90 font-semibold text-indigo-900 cursor-pointer'
+          : 'hover:bg-slate-50 cursor-pointer transition';
+
+        return `
+          <tr onclick="toggleWeekdaySelection(${s.dayIdx})" class="${rowClass}" title="點擊篩選${s.label}訂單明細">
+            <td class="py-1.5 px-3 whitespace-nowrap">
+              <span class="font-medium">${s.label}</span>
+              ${isBest ? '<span class="ml-1 px-1.5 py-0.2 bg-indigo-100 text-indigo-700 rounded text-[10px] font-bold">HOT</span>' : ''}
+            </td>
+            <td class="py-1.5 px-2 text-right text-slate-500">${s.activeDays} 天</td>
+            <td class="py-1.5 px-2 text-right font-semibold text-indigo-600">${fmt2(s.avgOrders)} 筆</td>
+            <td class="py-1.5 px-2 text-right text-slate-700">$${s.aov.toLocaleString()}</td>
+            <td class="py-1.5 px-3 text-right text-blue-600 font-medium">$${fmt2(s.gmvRounded)}</td>
+          </tr>
+        `;
+      }).join('');
+
+      // 渲染左側雙軸圖表
+      const labels = orderedStats.map(s => s.label);
+      const isAvgMode = weekdayChartMode === 'avg';
+
+      const primaryData = orderedStats.map(s => isAvgMode ? s.avgOrders : s.gmvRounded);
+      const secondaryData = orderedStats.map(s => isAvgMode ? s.aov : s.estRounded);
+
+      const primaryBgColors = orderedStats.map(s => {
+        const isDimmed = selectedWeekdayFilter !== null && s.dayIdx !== selectedWeekdayFilter;
+        return isAvgMode
+          ? `rgba(79, 70, 229, ${isDimmed ? 0.2 : 0.85})`
+          : `rgba(37, 99, 235, ${isDimmed ? 0.2 : 0.85})`;
+      });
+
+      const ctx = document.getElementById('weekdayBarChart').getContext('2d');
+      if (weekdayChartInstance) {
+        weekdayChartInstance.destroy();
+      }
+
+      weekdayChartInstance = new Chart(ctx, {
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              type: 'bar',
+              label: isAvgMode ? '日均訂單數 (筆)' : '累計成交額 ($)',
+              data: primaryData,
+              backgroundColor: primaryBgColors,
+              borderColor: isAvgMode ? 'rgb(79, 70, 229)' : 'rgb(37, 99, 235)',
+              borderWidth: 1,
+              borderRadius: 5,
+              yAxisID: 'yLeft',
+              maxBarThickness: 38,
+              order: 2
+            },
+            {
+              type: 'line',
+              label: isAvgMode ? '平均客單價 ($)' : '累計預估分潤 ($)',
+              data: secondaryData,
+              borderColor: isAvgMode ? 'rgb(217, 119, 6)' : 'rgb(5, 150, 105)',
+              backgroundColor: isAvgMode ? 'rgb(217, 119, 6)' : 'rgb(5, 150, 105)',
+              borderWidth: 2.5,
+              tension: 0.3,
+              pointRadius: 4.5,
+              pointHoverRadius: 6.5,
+              pointBorderColor: '#ffffff',
+              pointBorderWidth: 1.5,
+              yAxisID: 'yRight',
+              order: 1
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
+          onHover: (event, elements) => {
+            if (event.native && event.native.target) {
+              event.native.target.style.cursor = elements.length > 0 ? 'pointer' : 'default';
+            }
+          },
+          onClick: (event, elements) => {
+            if (!elements || elements.length === 0) return;
+            const idx = elements[0].index;
+            const targetStat = orderedStats[idx];
+            if (targetStat) {
+              toggleWeekdaySelection(targetStat.dayIdx);
+            }
+          },
+          plugins: {
+            legend: {
+              position: 'top',
+              align: 'end',
+              labels: {
+                usePointStyle: true,
+                boxWidth: 8,
+                font: { size: 11 }
+              }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(15, 23, 42, 0.92)',
+              padding: 12,
+              callbacks: {
+                title: (items) => {
+                  const s = orderedStats[items[0].dataIndex];
+                  return `${s.label}（統計涵蓋 ${s.activeDays} 個日曆天，共 ${s.orders.toLocaleString()} 筆）`;
+                },
+                label: (context) => {
+                  const val = context.parsed.y;
+                  if (isAvgMode && context.dataset.yAxisID === 'yLeft') {
+                    return ` 日均訂單數：${fmt2(val)} 筆`;
+                  }
+                  return ` ${context.dataset.label}：$${fmt2(val)}`;
+                },
+                afterBody: (items) => {
+                  const s = orderedStats[items[0].dataIndex];
+                  const hint = selectedWeekdayFilter === s.dayIdx
+                    ? '💡 再點一次可取消星期鎖定'
+                    : `💡 點擊可篩選所有${s.label}訂單明細`;
+                  return [
+                    '──────────────────',
+                    `日均成交額：$${fmt2(s.avgGmv)}`,
+                    `平均客單價：$${s.aov.toLocaleString()}`,
+                    `累計成交額：$${fmt2(s.gmvRounded)}`,
+                    `累計預估分潤：$${fmt2(s.estRounded)}`,
+                    hint
+                  ];
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { font: { size: 12, weight: 'bold' } }
+            },
+            yLeft: {
+              type: 'linear',
+              position: 'left',
+              beginAtZero: true,
+              ticks: {
+                font: { size: 11 },
+                callback: (value) => isAvgMode ? `${fmt2(value)} 筆` : `$${fmt2(value)}`
+              },
+              grid: {
+                color: 'rgba(226, 232, 240, 0.7)'
+              }
+            },
+            yRight: {
+              type: 'linear',
+              position: 'right',
+              beginAtZero: true,
+              ticks: {
+                font: { size: 11 },
+                callback: (value) => `$${fmt2(value)}`
+              },
+              grid: {
+                drawOnChartArea: false
               }
             }
           }
@@ -1687,7 +2232,9 @@
       document.getElementById('subIdFilter').value = '';
       document.getElementById('onlyZeroEstCheck').checked = false;
       selectedDateFilter = '';
-      selectedHourFilter = null;
+      selectedWeekdayFilter = null;
+      hourRangeFilter = null;
+      syncHourRangeControls();
       chartGranularity = 'monthly';
       updateChartControlButtons();
       applyFilters();
