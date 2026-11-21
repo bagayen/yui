@@ -142,58 +142,109 @@
       </div>
     </div>
 
-    <!-- 每日 / 每月條狀圖分析區塊 -->
-    <div id="chartSection" class="hidden bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-6">
-      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
-        <div>
+    <!-- 雙圖表分析區塊：左側「每月/每日趨勢條狀圖」 + 右側「每日下單時間分佈線圖」 -->
+    <div id="chartSection" class="hidden grid grid-cols-1 xl:grid-cols-12 gap-6 mb-6">
+      <!-- 左側：每月 / 每日條狀圖 -->
+      <div class="xl:col-span-7 bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
+          <div>
+            <div class="flex flex-wrap items-center gap-2">
+              <h2 class="text-base font-bold text-slate-900" id="chartTitle">每月訂單數與金額變化</h2>
+              <button type="button" id="selectedDateBadge" onclick="clearSelectedDate()"
+                class="hidden inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 hover:bg-blue-200 transition"
+                title="點擊取消日期篩選">
+                <span id="selectedDateBadgeText">已鎖定日期：2026-11-11</span>
+                <span class="text-blue-500 font-bold">✕</span>
+              </button>
+            </div>
+            <p class="text-xs text-slate-500 mt-0.5" id="chartSubtitle">點擊長條可直接下鑽月份或鎖定該日明細（再點一次取消鎖定）</p>
+          </div>
+
           <div class="flex flex-wrap items-center gap-2">
-            <h2 class="text-base font-bold text-slate-900" id="chartTitle">每月訂單數與金額變化</h2>
-            <button type="button" id="selectedDateBadge" onclick="clearSelectedDate()"
-              class="hidden inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 hover:bg-blue-200 transition"
-              title="點擊取消日期篩選">
-              <span id="selectedDateBadgeText">已鎖定日期：2026-11-11</span>
-              <span class="text-blue-500 font-bold">✕</span>
+            <div class="inline-flex rounded-lg bg-slate-100 p-1 text-xs font-medium">
+              <button type="button" id="btnGranularityMonthly" onclick="setChartGranularity('monthly')"
+                class="px-2.5 py-1.5 rounded-md bg-white text-slate-900 shadow-sm transition">
+                按月
+              </button>
+              <button type="button" id="btnGranularityDaily" onclick="setChartGranularity('daily')"
+                class="px-2.5 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition">
+                按日
+              </button>
+            </div>
+
+            <div class="inline-flex rounded-lg bg-slate-100 p-1 text-xs font-medium">
+              <button type="button" id="btnMetricGmv" onclick="setChartAmountType('gmv')"
+                class="px-2.5 py-1.5 rounded-md bg-white text-blue-700 shadow-sm transition">
+                成交額
+              </button>
+              <button type="button" id="btnMetricEst" onclick="setChartAmountType('est')"
+                class="px-2.5 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition">
+                預估分潤
+              </button>
+              <button type="button" id="btnMetricSettled" onclick="setChartAmountType('settled')"
+                class="px-2.5 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition">
+                結算分潤
+              </button>
+            </div>
+
+            <button type="button" onclick="toggleChartBody()" id="btnToggleChart"
+              class="px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 hover:bg-slate-50 transition">
+              收合
             </button>
           </div>
-          <p class="text-xs text-slate-500 mt-0.5" id="chartSubtitle">點擊長條可直接下鑽月份或鎖定該日明細（再點一次取消鎖定）</p>
         </div>
 
-        <div class="flex flex-wrap items-center gap-2">
-          <div class="inline-flex rounded-lg bg-slate-100 p-1 text-xs font-medium">
-            <button type="button" id="btnGranularityMonthly" onclick="setChartGranularity('monthly')"
-              class="px-3 py-1.5 rounded-md bg-white text-slate-900 shadow-sm transition">
-              按月統計
-            </button>
-            <button type="button" id="btnGranularityDaily" onclick="setChartGranularity('daily')"
-              class="px-3 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition">
-              按日統計
-            </button>
-          </div>
-
-          <div class="inline-flex rounded-lg bg-slate-100 p-1 text-xs font-medium">
-            <button type="button" id="btnMetricGmv" onclick="setChartAmountType('gmv')"
-              class="px-3 py-1.5 rounded-md bg-white text-blue-700 shadow-sm transition">
-              成交額
-            </button>
-            <button type="button" id="btnMetricEst" onclick="setChartAmountType('est')"
-              class="px-3 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition">
-              預估分潤
-            </button>
-            <button type="button" id="btnMetricSettled" onclick="setChartAmountType('settled')"
-              class="px-3 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition">
-              結算分潤
-            </button>
-          </div>
-
-          <button type="button" onclick="toggleChartBody()" id="btnToggleChart"
-            class="px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 hover:bg-slate-50 transition">
-            收合圖表
-          </button>
+        <div id="chartBody" class="relative h-72 w-full">
+          <canvas id="trendBarChart"></canvas>
         </div>
       </div>
 
-      <div id="chartBody" class="relative h-72 w-full">
-        <canvas id="trendBarChart"></canvas>
+      <!-- 右側：每日下單時間分佈線圖（24 小時） -->
+      <div class="xl:col-span-5 bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <div>
+            <div class="flex flex-wrap items-center gap-2">
+              <h2 class="text-base font-bold text-slate-900">每日下單時間分佈</h2>
+              <span id="peakHourBadge"
+                class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-violet-50 text-violet-700 border border-violet-200">
+                尖峰：--:--
+              </span>
+              <button type="button" id="selectedHourBadge" onclick="clearSelectedHour()"
+                class="hidden inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 hover:bg-amber-200 transition"
+                title="點擊取消時段篩選">
+                <span id="selectedHourBadgeText">已鎖定時段：22:00</span>
+                <span class="text-amber-600 font-bold">✕</span>
+              </button>
+            </div>
+            <p class="text-xs text-slate-500 mt-0.5">24 小時下單熱度曲線（點擊節點可篩選該小時訂單）</p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="inline-flex rounded-lg bg-slate-100 p-1 text-xs font-medium">
+              <button type="button" id="btnHourlyMetricOrders" onclick="setHourlyMetricType('orders')"
+                class="px-2.5 py-1.5 rounded-md bg-white text-violet-700 shadow-sm transition">
+                訂單數
+              </button>
+              <button type="button" id="btnHourlyMetricGmv" onclick="setHourlyMetricType('gmv')"
+                class="px-2.5 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition">
+                成交額
+              </button>
+              <button type="button" id="btnHourlyMetricEst" onclick="setHourlyMetricType('est')"
+                class="px-2.5 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition">
+                預估分潤
+              </button>
+            </div>
+
+            <button type="button" onclick="toggleHourlyChartBody()" id="btnToggleHourlyChart"
+              class="px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 hover:bg-slate-50 transition">
+              收合
+            </button>
+          </div>
+        </div>
+
+        <div id="hourlyChartBody" class="relative h-72 w-full">
+          <canvas id="hourlyOrderLineChart"></canvas>
+        </div>
       </div>
     </div>
 
@@ -269,7 +320,7 @@
       <!-- 分頁 2：熱銷單品 Top 20 排行榜（所有計算金額皆顯示至小數點後兩位） -->
       <div id="topProductsContainer" class="hidden">
         <div class="px-4 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-          <span>已自動拆解多品訂單並依商品名稱歸戶；預估分潤採單品明細直接加總，結算分潤依成交額佔比推算。</span>
+          <span>已自動拆解多品訂單並依商品名稱歸戶；預估分潤採單品明細直接加總，結算分潤依成交額佔比推算（計算結果顯示至小數後兩位）。</span>
           <span id="topProductSummaryNote" class="font-medium text-slate-600">共歸戶 0 項不重複商品</span>
         </div>
         <div class="overflow-x-auto">
@@ -298,15 +349,22 @@
 
     let allOrders = [];
     let baseFilteredEntries = [];
+    let dateFilteredEntries = [];
     let filteredEntries = [];
     let displayLimit = 100;
 
-    // 圖表狀態變數
+    // 左側月/日條狀圖狀態變數
     let trendChartInstance = null;
     let chartGranularity = 'monthly'; // 'monthly' | 'daily'
     let chartAmountType = 'gmv';      // 'gmv' | 'est' | 'settled'
     let isChartCollapsed = false;
     let selectedDateFilter = '';
+
+    // 右側每日下單時間線圖狀態變數
+    let hourlyChartInstance = null;
+    let hourlyMetricType = 'orders';  // 'orders' | 'gmv' | 'est'
+    let isHourlyChartCollapsed = false;
+    let selectedHourFilter = null;    // null 或 0~23 整數
 
     // 主分頁與熱銷單品排行狀態
     let activeMainTab = 'orders';        // 'orders' | 'topProducts'
@@ -357,6 +415,7 @@
     function onLoadRangeChange() {
       document.getElementById('monthFilter').value = '';
       selectedDateFilter = '';
+      selectedHourFilter = null;
       chartGranularity = 'monthly';
       updateChartControlButtons();
       loadData();
@@ -533,6 +592,23 @@
       }
     }
 
+    function clearSelectedHour() {
+      selectedHourFilter = null;
+      applyFilters();
+    }
+
+    function updateSelectedHourBadge() {
+      const badgeEl = document.getElementById('selectedHourBadge');
+      const textEl = document.getElementById('selectedHourBadgeText');
+      if (selectedHourFilter !== null) {
+        const hh = String(selectedHourFilter).padStart(2, '0');
+        textEl.textContent = `已鎖定時段：${hh}:00~${hh}:59`;
+        badgeEl.classList.remove('hidden');
+      } else {
+        badgeEl.classList.add('hidden');
+      }
+    }
+
     function setChartGranularity(mode) {
       chartGranularity = mode;
       if (mode === 'monthly') {
@@ -554,17 +630,50 @@
       const btnEl = document.getElementById('btnToggleChart');
       if (isChartCollapsed) {
         bodyEl.classList.add('hidden');
-        btnEl.textContent = '展開圖表';
+        btnEl.textContent = '展開';
       } else {
         bodyEl.classList.remove('hidden');
-        btnEl.textContent = '收合圖表';
+        btnEl.textContent = '收合';
         updateTrendChart(baseFilteredEntries);
       }
     }
 
+    function setHourlyMetricType(type) {
+      hourlyMetricType = type;
+      const activeMap = {
+        orders: 'px-2.5 py-1.5 rounded-md bg-white text-violet-700 shadow-sm transition',
+        gmv: 'px-2.5 py-1.5 rounded-md bg-white text-blue-700 shadow-sm transition',
+        est: 'px-2.5 py-1.5 rounded-md bg-white text-amber-700 shadow-sm transition'
+      };
+      const inactiveClass = 'px-2.5 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition';
+
+      document.getElementById('btnHourlyMetricOrders').className =
+        hourlyMetricType === 'orders' ? activeMap.orders : inactiveClass;
+      document.getElementById('btnHourlyMetricGmv').className =
+        hourlyMetricType === 'gmv' ? activeMap.gmv : inactiveClass;
+      document.getElementById('btnHourlyMetricEst').className =
+        hourlyMetricType === 'est' ? activeMap.est : inactiveClass;
+
+      updateHourlyChart(dateFilteredEntries);
+    }
+
+    function toggleHourlyChartBody() {
+      isHourlyChartCollapsed = !isHourlyChartCollapsed;
+      const bodyEl = document.getElementById('hourlyChartBody');
+      const btnEl = document.getElementById('btnToggleHourlyChart');
+      if (isHourlyChartCollapsed) {
+        bodyEl.classList.add('hidden');
+        btnEl.textContent = '展開';
+      } else {
+        bodyEl.classList.remove('hidden');
+        btnEl.textContent = '收合';
+        updateHourlyChart(dateFilteredEntries);
+      }
+    }
+
     function updateChartControlButtons() {
-      const activeGranClass = 'px-3 py-1.5 rounded-md bg-white text-slate-900 shadow-sm transition';
-      const inactiveGranClass = 'px-3 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition';
+      const activeGranClass = 'px-2.5 py-1.5 rounded-md bg-white text-slate-900 shadow-sm transition';
+      const inactiveGranClass = 'px-2.5 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition';
 
       document.getElementById('btnGranularityMonthly').className =
         chartGranularity === 'monthly' ? activeGranClass : inactiveGranClass;
@@ -572,11 +681,11 @@
         chartGranularity === 'daily' ? activeGranClass : inactiveGranClass;
 
       const activeMetricMap = {
-        gmv: 'px-3 py-1.5 rounded-md bg-white text-blue-700 shadow-sm transition',
-        est: 'px-3 py-1.5 rounded-md bg-white text-amber-700 shadow-sm transition',
-        settled: 'px-3 py-1.5 rounded-md bg-white text-emerald-700 shadow-sm transition'
+        gmv: 'px-2.5 py-1.5 rounded-md bg-white text-blue-700 shadow-sm transition',
+        est: 'px-2.5 py-1.5 rounded-md bg-white text-amber-700 shadow-sm transition',
+        settled: 'px-2.5 py-1.5 rounded-md bg-white text-emerald-700 shadow-sm transition'
       };
-      const inactiveMetricClass = 'px-3 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition';
+      const inactiveMetricClass = 'px-2.5 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition';
 
       document.getElementById('btnMetricGmv').className =
         chartAmountType === 'gmv' ? activeMetricMap.gmv : inactiveMetricClass;
@@ -720,20 +829,32 @@
         }
       }
 
+      // 第一層：套用日期鎖定（供「每日下單時間分佈線圖」使用）
       if (selectedDateFilter) {
-        filteredEntries = baseFilteredEntries.filter(
+        dateFilteredEntries = baseFilteredEntries.filter(
           entry => getTimeBucketKey(entry.order, 'daily') === selectedDateFilter
         );
       } else {
-        filteredEntries = baseFilteredEntries;
+        dateFilteredEntries = baseFilteredEntries;
+      }
+
+      // 第二層：套用小時鎖定（供統計卡片、Top 20 排行榜與訂單明細表使用）
+      if (selectedHourFilter !== null) {
+        filteredEntries = dateFilteredEntries.filter(
+          entry => extractOrderHour(entry.order.orderTime) === selectedHourFilter
+        );
+      } else {
+        filteredEntries = dateFilteredEntries;
       }
 
       displayLimit = 100;
       document.getElementById('tabBadgeOrders').textContent = filteredEntries.length.toLocaleString();
       updateSelectedDateBadge();
+      updateSelectedHourBadge();
 
       updateSummaryCards(filteredEntries, keywords.length > 0);
       updateTrendChart(baseFilteredEntries);
+      updateHourlyChart(dateFilteredEntries);
       updateTopProducts(filteredEntries);
       renderTable(keywords.length > 0);
     }
@@ -963,6 +1084,21 @@
         }
         return order.month ? `${order.month}-01` : '未知日期';
       }
+    }
+
+    function extractOrderHour(rawTime) {
+      const str = String(rawTime || '').trim();
+      const timeMatch = str.match(/(?:^|\s|T)(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM|上午|下午)?/i);
+      if (!timeMatch) return -1;
+
+      let hour = parseInt(timeMatch[1], 10);
+      const meridiem = (timeMatch[3] || '').toUpperCase();
+      if (meridiem === 'PM' || meridiem === '下午') {
+        if (hour < 12) hour += 12;
+      } else if (meridiem === 'AM' || meridiem === '上午') {
+        if (hour === 12) hour = 0;
+      }
+      return (hour >= 0 && hour <= 23) ? hour : -1;
     }
 
     function updateTrendChart(entries) {
@@ -1215,6 +1351,206 @@
       });
     }
 
+    // 右側：每日 24 小時下單時間分佈線圖
+    function updateHourlyChart(entries) {
+      const excludeCancelled = document.getElementById('excludeCancelledCheck').checked;
+      const prorateCommission = document.getElementById('prorateCommissionCheck').checked;
+
+      const hourlyBuckets = Array.from({ length: 24 }, (_, h) => ({
+        hour: h,
+        orders: 0,
+        gmv: 0,
+        est: 0,
+        settled: 0
+      }));
+
+      let totalValidOrders = 0;
+
+      for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i];
+        const o = entry.order;
+        const isCancelled = String(o.status || '').trim().toUpperCase() === 'CANCELLED';
+        if (excludeCancelled && isCancelled) continue;
+
+        const hour = extractOrderHour(o.orderTime);
+        if (hour < 0 || hour > 23) continue;
+
+        const bucket = hourlyBuckets[hour];
+        const estVal = (prorateCommission || entry.hasPerLineEst) ? entry.matchedEst : entry.fullEst;
+        const settledWeight = (prorateCommission && entry.isPartialMatch) ? entry.ratio : 1;
+
+        bucket.orders += 1;
+        bucket.gmv += entry.matchedGmv;
+        bucket.est += estVal;
+        bucket.settled += o.settledCommission * settledWeight;
+        totalValidOrders += 1;
+      }
+
+      const metricConfig = {
+        orders: {
+          label: '訂單數 (筆)',
+          getVal: (b) => b.orders,
+          borderColor: 'rgb(124, 58, 237)',
+          fillColor: 'rgba(124, 58, 237, 0.12)',
+          pointHex: '#7c3aed',
+          isCurrency: false
+        },
+        gmv: {
+          label: '有效成交額 ($)',
+          getVal: (b) => round2(b.gmv),
+          borderColor: 'rgb(37, 99, 235)',
+          fillColor: 'rgba(37, 99, 235, 0.12)',
+          pointHex: '#2563eb',
+          isCurrency: true
+        },
+        est: {
+          label: '預估分潤 ($)',
+          getVal: (b) => round2(b.est),
+          borderColor: 'rgb(217, 119, 6)',
+          fillColor: 'rgba(217, 119, 6, 0.12)',
+          pointHex: '#d97706',
+          isCurrency: true
+        }
+      }[hourlyMetricType];
+
+      const seriesData = hourlyBuckets.map(b => metricConfig.getVal(b));
+      const maxVal = Math.max(...seriesData, 0);
+
+      // 更新尖峰時段徽章
+      const peakBadge = document.getElementById('peakHourBadge');
+      if (maxVal > 0) {
+        const peakIdx = seriesData.indexOf(maxVal);
+        const peakHh = String(peakIdx).padStart(2, '0');
+        const peakText = metricConfig.isCurrency ? `$${fmt2(maxVal)}` : `${maxVal.toLocaleString()} 筆`;
+        peakBadge.textContent = `尖峰：${peakHh}:00 (${peakText})`;
+      } else {
+        peakBadge.textContent = '尖峰：--:--';
+      }
+
+      if (isHourlyChartCollapsed) return;
+
+      const labels = hourlyBuckets.map(b => `${String(b.hour).padStart(2, '0')}:00`);
+      const pointRadii = hourlyBuckets.map((b, idx) => {
+        if (selectedHourFilter !== null) {
+          return idx === selectedHourFilter ? 7 : 2.5;
+        }
+        return (maxVal > 0 && seriesData[idx] === maxVal) ? 5.5 : 3;
+      });
+      const pointColors = hourlyBuckets.map((b, idx) => {
+        if (selectedHourFilter !== null) {
+          return idx === selectedHourFilter ? '#f59e0b' : 'rgba(148, 163, 184, 0.55)';
+        }
+        return (maxVal > 0 && seriesData[idx] === maxVal) ? '#f59e0b' : metricConfig.pointHex;
+      });
+
+      const ctx = document.getElementById('hourlyOrderLineChart').getContext('2d');
+      if (hourlyChartInstance) {
+        hourlyChartInstance.destroy();
+      }
+
+      hourlyChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: metricConfig.label,
+              data: seriesData,
+              borderColor: metricConfig.borderColor,
+              backgroundColor: metricConfig.fillColor,
+              borderWidth: 2.2,
+              fill: true,
+              tension: 0.35,
+              pointRadius: pointRadii,
+              pointHoverRadius: 6.5,
+              pointBackgroundColor: pointColors,
+              pointBorderColor: '#ffffff',
+              pointBorderWidth: 1.5
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
+          onHover: (event, elements) => {
+            if (event.native && event.native.target) {
+              event.native.target.style.cursor = elements.length > 0 ? 'pointer' : 'default';
+            }
+          },
+          onClick: (event, elements) => {
+            if (!elements || elements.length === 0) return;
+            const clickedHour = elements[0].index;
+            selectedHourFilter = (selectedHourFilter === clickedHour) ? null : clickedHour;
+            applyFilters();
+          },
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              backgroundColor: 'rgba(15, 23, 42, 0.92)',
+              padding: 12,
+              callbacks: {
+                title: (items) => {
+                  const h = items[0].dataIndex;
+                  const hh = String(h).padStart(2, '0');
+                  return `時段：${hh}:00 ～ ${hh}:59`;
+                },
+                label: (context) => {
+                  const h = context.dataIndex;
+                  const b = hourlyBuckets[h];
+                  const share = totalValidOrders > 0 ? ((b.orders / totalValidOrders) * 100).toFixed(1) : '0.0';
+                  return ` 訂單數：${b.orders.toLocaleString()} 筆（佔 ${share}%）`;
+                },
+                afterBody: (items) => {
+                  const h = items[0].dataIndex;
+                  const b = hourlyBuckets[h];
+                  const hint = selectedHourFilter === h
+                    ? '💡 再點一次可取消時段鎖定'
+                    : '💡 點擊可篩選該時段訂單明細';
+                  return [
+                    `有效成交額：$${fmt2(b.gmv)}`,
+                    `預估分潤 ：$${fmt2(b.est)}`,
+                    `結算總分潤：$${fmt2(b.settled)}`,
+                    '──────────────────',
+                    hint
+                  ];
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: {
+                font: { size: 10 },
+                maxRotation: 0,
+                autoSkip: true,
+                maxTicksLimit: 12
+              }
+            },
+            y: {
+              beginAtZero: true,
+              ticks: {
+                precision: metricConfig.isCurrency ? undefined : 0,
+                font: { size: 11 },
+                callback: (value) => metricConfig.isCurrency
+                  ? '$' + fmt2(value)
+                  : Number(value).toLocaleString()
+              },
+              grid: {
+                color: 'rgba(226, 232, 240, 0.7)'
+              }
+            }
+          }
+        }
+      });
+    }
+
     // 下方訂單明細列表：完整保留資料庫原始小數位數 (fmtNum)
     function renderTable(hasKeyword) {
       const tbody = document.getElementById('tableBody');
@@ -1306,6 +1642,7 @@
       document.getElementById('statusFilter').value = '';
       document.getElementById('subIdFilter').value = '';
       selectedDateFilter = '';
+      selectedHourFilter = null;
       chartGranularity = 'monthly';
       updateChartControlButtons();
       applyFilters();
