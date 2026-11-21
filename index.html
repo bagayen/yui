@@ -99,8 +99,8 @@
         </div>
       </div>
 
-      <!-- 計算邏輯校正選項 -->
-      <div class="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center gap-6 text-xs text-slate-600">
+      <!-- 計算邏輯與異常抓漏選項 -->
+      <div class="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-slate-600">
         <label class="inline-flex items-center gap-2 cursor-pointer select-none">
           <input type="checkbox" id="excludeCancelledCheck" checked onchange="applyFilters()"
             class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
@@ -108,9 +108,15 @@
         </label>
 
         <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+          <input type="checkbox" id="onlyZeroEstCheck" onchange="applyFilters()"
+            class="rounded border-slate-300 text-rose-600 focus:ring-rose-500">
+          <span>只看 <span class="px-1.5 py-0.5 bg-rose-50 text-rose-700 font-semibold rounded">$0 零分潤</span> 品項（抓出未開分潤或全額折抵單）</span>
+        </label>
+
+        <label class="inline-flex items-center gap-2 cursor-pointer select-none">
           <input type="checkbox" id="prorateCommissionCheck" checked onchange="applyFilters()"
             class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
-          <span>多品訂單只命中部分商品時，結算分潤依「單品成交額佔比」分攤推算（預估分潤直接採單品明細加總）</span>
+          <span>多品訂單只命中部分商品時，結算分潤依「單品成交額佔比」分攤推算</span>
         </label>
       </div>
     </div>
@@ -282,6 +288,10 @@
           class="px-3 py-1.5 rounded-lg bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 transition">
           累計訂單數
         </button>
+        <button type="button" id="sortBtnRateAsc" onclick="setProductSortBy('maxRateAsc')"
+          class="px-3 py-1.5 rounded-lg bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 transition">
+          分潤率 (低→高)
+        </button>
       </div>
     </div>
 
@@ -320,7 +330,7 @@
       <!-- 分頁 2：熱銷單品 Top 50 排行榜（所有計算金額皆顯示至小數點後兩位） -->
       <div id="topProductsContainer" class="hidden">
         <div class="px-4 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-          <span>已自動拆解多品訂單並依商品名稱歸戶；預估分潤採單品明細直接加總，結算分潤依成交額佔比推算。</span>
+          <span>「最高表觀分潤率」取該商品所有訂單中出現過的最高單筆比例，可過濾單筆折價券干擾並找出真正低佣商品。</span>
           <span id="topProductSummaryNote" class="font-medium text-slate-600">共歸戶 0 項不重複商品</span>
         </div>
         <div class="overflow-x-auto">
@@ -329,11 +339,12 @@
               <tr class="bg-slate-100 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase">
                 <th class="py-3 px-3 w-16 text-center">排名</th>
                 <th class="py-3 px-4">商品名稱</th>
-                <th class="py-3 px-4 text-right whitespace-nowrap">累計訂單數</th>
-                <th class="py-3 px-4 text-right whitespace-nowrap">累計成交額</th>
-                <th class="py-3 px-4 text-right whitespace-nowrap">預估分潤</th>
-                <th class="py-3 px-4 text-right whitespace-nowrap">推算結算分潤</th>
-                <th class="py-3 px-3 w-24 text-center">明細</th>
+                <th class="py-3 px-3 text-right whitespace-nowrap">累計訂單數</th>
+                <th class="py-3 px-3 text-right whitespace-nowrap">累計成交額</th>
+                <th class="py-3 px-3 text-right whitespace-nowrap">預估分潤</th>
+                <th class="py-3 px-3 text-right whitespace-nowrap" title="該商品所有訂單中出現過的最高單筆分潤率（排除折價券干擾）">最高表觀分潤率</th>
+                <th class="py-3 px-3 text-right whitespace-nowrap">推算結算分潤</th>
+                <th class="py-3 px-3 w-20 text-center">明細</th>
               </tr>
             </thead>
             <tbody id="topProductsBody" class="divide-y divide-slate-100 text-sm"></tbody>
@@ -369,7 +380,7 @@
 
     // 主分頁與熱銷單品排行狀態
     let activeMainTab = 'orders';        // 'orders' | 'topProducts'
-    let productSortBy = 'estCommission'; // 'estCommission' | 'settledCommission' | 'gmv' | 'orderCount'
+    let productSortBy = 'estCommission'; // 'estCommission' | 'settledCommission' | 'gmv' | 'orderCount' | 'maxRateAsc'
     let currentTopProducts = [];
 
     // 保留資料庫原始小數位數（僅供最下方「訂單明細列表」使用）
@@ -558,7 +569,8 @@
         estCommission: { id: 'sortBtnEst', active: 'px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 font-semibold transition' },
         settledCommission: { id: 'sortBtnSettled', active: 'px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold transition' },
         gmv: { id: 'sortBtnGmv', active: 'px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-semibold transition' },
-        orderCount: { id: 'sortBtnOrders', active: 'px-3 py-1.5 rounded-lg bg-slate-800 text-white border border-slate-800 font-semibold transition' }
+        orderCount: { id: 'sortBtnOrders', active: 'px-3 py-1.5 rounded-lg bg-slate-800 text-white border border-slate-800 font-semibold transition' },
+        maxRateAsc: { id: 'sortBtnRateAsc', active: 'px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 font-semibold transition' }
       };
       const inactiveClass = 'px-3 py-1.5 rounded-lg bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 transition';
 
@@ -697,7 +709,7 @@
         chartAmountType === 'settled' ? activeMetricMap.settled : inactiveMetricClass;
     }
 
-    function evaluateOrderMatch(order, keywords) {
+    function evaluateOrderMatch(order, keywords, onlyZeroEst) {
       const pLines = (order.productLines && order.productLines.length > 0)
         ? order.productLines
         : [order.productName || ''];
@@ -730,48 +742,45 @@
         lineMetrics.push({ q, p, lineGmv, est });
       }
 
+      let targetIndices = [];
+
       if (keywords.length === 0) {
-        const allIndices = new Set();
-        for (let k = 0; k < lineCount; k++) allIndices.add(k);
-        return {
-          matched: true,
-          matchedLineIndices: allIndices,
-          isPartialMatch: false,
-          hasPerLineEst: hasPerLineEst,
-          matchedQty: fullQty,
-          matchedGmv: fullGmv,
-          matchedEst: fullEst,
-          fullGmv: fullGmv,
-          fullEst: fullEst,
-          lineMetrics: lineMetrics,
-          ratio: 1
-        };
-      }
+        for (let k = 0; k < lineCount; k++) targetIndices.push(k);
+      } else {
+        const searchableText = `${order.productName} ${order.orderId} ${order.subId}`.toLowerCase();
+        if (!keywords.every(kw => searchableText.includes(kw))) {
+          return { matched: false };
+        }
 
-      const searchableText = `${order.productName} ${order.orderId} ${order.subId}`.toLowerCase();
-      if (!keywords.every(kw => searchableText.includes(kw))) {
-        return { matched: false };
-      }
+        const strictMatched = [];
+        const partialMatched = [];
 
-      const strictMatched = [];
-      const partialMatched = [];
+        for (let k = 0; k < lineCount; k++) {
+          const lineText = String(pLines[k] || '').toLowerCase();
+          if (keywords.every(kw => lineText.includes(kw))) {
+            strictMatched.push(k);
+          } else if (keywords.some(kw => lineText.includes(kw))) {
+            partialMatched.push(k);
+          }
+        }
 
-      for (let k = 0; k < lineCount; k++) {
-        const lineText = String(pLines[k] || '').toLowerCase();
-        if (keywords.every(kw => lineText.includes(kw))) {
-          strictMatched.push(k);
-        } else if (keywords.some(kw => lineText.includes(kw))) {
-          partialMatched.push(k);
+        if (strictMatched.length > 0) {
+          targetIndices = strictMatched;
+        } else if (partialMatched.length > 0) {
+          targetIndices = partialMatched;
+        } else {
+          for (let k = 0; k < lineCount; k++) targetIndices.push(k);
         }
       }
 
-      let targetIndices = [];
-      if (strictMatched.length > 0) {
-        targetIndices = strictMatched;
-      } else if (partialMatched.length > 0) {
-        targetIndices = partialMatched;
-      } else {
-        for (let k = 0; k < lineCount; k++) targetIndices.push(k);
+      // 抓漏模式：只保留預估分潤為 $0 的品項
+      if (onlyZeroEst) {
+        if (!hasPerLineEst) {
+          if (cleanNum(fullEst) > 0) return { matched: false };
+        } else {
+          targetIndices = targetIndices.filter(idx => cleanNum(lineMetrics[idx].est) <= 0);
+          if (targetIndices.length === 0) return { matched: false };
+        }
       }
 
       let matchedQty = 0;
@@ -813,6 +822,8 @@
       const selectedMonth = document.getElementById('monthFilter').value;
       const selectedStatus = document.getElementById('statusFilter').value;
       const selectedSubId = document.getElementById('subIdFilter').value;
+      const excludeCancelled = document.getElementById('excludeCancelledCheck').checked;
+      const onlyZeroEst = document.getElementById('onlyZeroEstCheck').checked;
 
       baseFilteredEntries = [];
 
@@ -822,7 +833,11 @@
         if (selectedStatus && item.status !== selectedStatus) continue;
         if (selectedSubId && item.subId !== selectedSubId) continue;
 
-        const evalRes = evaluateOrderMatch(item, keywords);
+        // 抓漏 $0 分潤時，若同時勾選排除 CANCELLED，直接過濾掉已取消訂單
+        const isCancelled = String(item.status || '').trim().toUpperCase() === 'CANCELLED';
+        if (onlyZeroEst && excludeCancelled && isCancelled) continue;
+
+        const evalRes = evaluateOrderMatch(item, keywords, onlyZeroEst);
         if (evalRes.matched) {
           baseFilteredEntries.push({
             order: item,
@@ -850,19 +865,20 @@
       }
 
       displayLimit = 100;
+      const hasLineFilter = keywords.length > 0 || onlyZeroEst;
       document.getElementById('tabBadgeOrders').textContent = filteredEntries.length.toLocaleString();
       updateSelectedDateBadge();
       updateSelectedHourBadge();
 
-      updateSummaryCards(filteredEntries, keywords.length > 0);
+      updateSummaryCards(filteredEntries, hasLineFilter, onlyZeroEst);
       updateTrendChart(baseFilteredEntries);
       updateHourlyChart(dateFilteredEntries);
       updateTopProducts(filteredEntries);
-      renderTable(keywords.length > 0);
+      renderTable(hasLineFilter);
     }
 
     // 上方四個統計面板：計算至小數點後兩位
-    function updateSummaryCards(entries, hasKeyword) {
+    function updateSummaryCards(entries, hasLineFilter, onlyZeroEst) {
       const excludeCancelled = document.getElementById('excludeCancelledCheck').checked;
       const prorateCommission = document.getElementById('prorateCommissionCheck').checked;
 
@@ -924,17 +940,18 @@
       document.getElementById('statOrderBreakdown').textContent =
         `完成 ${completedCount}｜待結算 ${pendingCount}｜取消 ${cancelledCount}`;
 
-      document.getElementById('statGmvTitle').textContent =
-        (hasKeyword && partialOrderCount > 0) ? '命中品項成交額' : '有效成交額';
+      document.getElementById('statGmvTitle').textContent = onlyZeroEst
+        ? '零分潤品項成交額'
+        : ((hasLineFilter && partialOrderCount > 0) ? '命中品項成交額' : '有效成交額');
       document.getElementById('statGmv').textContent = `$${fmt2(totalGmv)}`;
       document.getElementById('statAovRate').textContent =
-        (hasKeyword && partialOrderCount > 0)
+        (hasLineFilter && partialOrderCount > 0)
           ? `含 ${partialOrderCount} 筆多品拆算單｜平均分潤率 ${avgCommissionRate}%`
           : `平均客單價 $${avgOrderValue.toLocaleString()}｜平均分潤率 ${avgCommissionRate}%`;
 
       document.getElementById('statEst').textContent = `$${fmt2(totalEst)}`;
       document.getElementById('statEstBreakdown').textContent =
-        (hasKeyword && partialOrderCount > 0)
+        (hasLineFilter && partialOrderCount > 0)
           ? `命中單品明細加總（整單合計 $${fmt2(fullOrderEst)}）`
           : `待結算 $${fmt2(pendingEst)}｜已完成 $${fmt2(completedEst)}`;
 
@@ -945,7 +962,7 @@
           : `訂單完成率 ${completionRate}%（共 ${totalOrders} 筆總單）`;
     }
 
-    // 熱銷單品排行榜：依 TOP_PRODUCT_LIMIT 截取名次，所有計算金額皆限制至小數點後兩位
+    // 熱銷單品排行榜：計算「最高表觀分潤率」以過濾折價券干擾並找出真低佣商品
     function updateTopProducts(entries) {
       const excludeCancelled = document.getElementById('excludeCancelledCheck').checked;
       const productMap = new Map();
@@ -979,7 +996,8 @@
               orderSet: new Set(),
               gmv: 0,
               estCommission: 0,
-              settledCommission: 0
+              settledCommission: 0,
+              maxRate: 0
             });
           }
 
@@ -988,6 +1006,13 @@
           agg.gmv += lm.lineGmv;
           agg.estCommission += lineEst;
           agg.settledCommission += o.settledCommission * gmvWeight;
+
+          if (lm.lineGmv > 0) {
+            const lineRate = (lineEst / lm.lineGmv) * 100;
+            if (lineRate > agg.maxRate) {
+              agg.maxRate = lineRate;
+            }
+          }
         });
       }
 
@@ -996,10 +1021,16 @@
         orderCount: p.orderSet.size,
         gmv: round2(p.gmv),
         estCommission: round2(p.estCommission),
-        settledCommission: round2(p.settledCommission)
+        settledCommission: round2(p.settledCommission),
+        maxRate: round2(p.maxRate)
       }));
 
-      allProducts.sort((a, b) => b[productSortBy] - a[productSortBy]);
+      allProducts.sort((a, b) => {
+        if (productSortBy === 'maxRateAsc') {
+          return (a.maxRate - b.maxRate) || (b.gmv - a.gmv);
+        }
+        return b[productSortBy] - a[productSortBy];
+      });
 
       currentTopProducts = allProducts.slice(0, TOP_PRODUCT_LIMIT);
 
@@ -1015,11 +1046,12 @@
     function renderTopProductsTable(list) {
       const tbody = document.getElementById('topProductsBody');
       if (list.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="py-10 text-center text-slate-400">目前篩選條件下無商品統計資料</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="py-10 text-center text-slate-400">目前篩選條件下無商品統計資料</td></tr>`;
         return;
       }
 
-      const maxVal = Math.max(...list.map(item => item[productSortBy]), 1);
+      const barMetricKey = productSortBy === 'maxRateAsc' ? 'gmv' : productSortBy;
+      const maxVal = Math.max(...list.map(item => item[barMetricKey]), 1);
 
       const barColorMap = {
         estCommission: 'bg-amber-400',
@@ -1027,7 +1059,7 @@
         gmv: 'bg-blue-500',
         orderCount: 'bg-slate-600'
       };
-      const barColor = barColorMap[productSortBy] || 'bg-blue-500';
+      const barColor = barColorMap[barMetricKey] || 'bg-blue-500';
 
       tbody.innerHTML = list.map((item, idx) => {
         const rank = idx + 1;
@@ -1036,7 +1068,12 @@
         else if (rank === 2) rankBadge = `<span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-200 text-slate-700 text-xs font-bold">2</span>`;
         else if (rank === 3) rankBadge = `<span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-orange-100 text-orange-700 text-xs font-bold">3</span>`;
 
-        const pct = Math.max(2, Math.round((item[productSortBy] / maxVal) * 100));
+        const pct = Math.max(2, Math.round((item[barMetricKey] / maxVal) * 100));
+
+        // 最高表觀分潤率標籤樣式（0% 紅色警示、低於 1.5% 琥珀色提醒）
+        let rateBadgeClass = 'bg-slate-100 text-slate-700';
+        if (item.maxRate === 0) rateBadgeClass = 'bg-rose-100 text-rose-700 font-bold';
+        else if (item.maxRate < 1.5) rateBadgeClass = 'bg-amber-100 text-amber-800 font-semibold';
 
         return `
           <tr class="hover:bg-slate-50 transition">
@@ -1047,10 +1084,13 @@
                 <div class="${barColor} h-1.5 rounded-full" style="width: ${pct}%"></div>
               </div>
             </td>
-            <td class="py-3 px-4 text-right whitespace-nowrap font-medium text-slate-700">${item.orderCount.toLocaleString()} 筆</td>
-            <td class="py-3 px-4 text-right whitespace-nowrap text-blue-600 font-medium">$${fmt2(item.gmv)}</td>
-            <td class="py-3 px-4 text-right whitespace-nowrap text-amber-600 font-semibold">$${fmt2(item.estCommission)}</td>
-            <td class="py-3 px-4 text-right whitespace-nowrap text-emerald-600 font-semibold">$${fmt2(item.settledCommission)}</td>
+            <td class="py-3 px-3 text-right whitespace-nowrap font-medium text-slate-700">${item.orderCount.toLocaleString()} 筆</td>
+            <td class="py-3 px-3 text-right whitespace-nowrap text-blue-600 font-medium">$${fmt2(item.gmv)}</td>
+            <td class="py-3 px-3 text-right whitespace-nowrap text-amber-600 font-semibold">$${fmt2(item.estCommission)}</td>
+            <td class="py-3 px-3 text-right whitespace-nowrap">
+              <span class="inline-block px-2 py-0.5 rounded-full text-xs font-mono ${rateBadgeClass}">${fmt2(item.maxRate)}%</span>
+            </td>
+            <td class="py-3 px-3 text-right whitespace-nowrap text-emerald-600 font-semibold">$${fmt2(item.settledCommission)}</td>
             <td class="py-3 px-3 text-center whitespace-nowrap">
               <button type="button" onclick="inspectRankedProduct(${idx})"
                 class="px-2.5 py-1 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-600 rounded-md text-xs font-medium transition">
@@ -1555,7 +1595,7 @@
     }
 
     // 下方訂單明細列表：完整保留資料庫原始小數位數 (fmtNum)
-    function renderTable(hasKeyword) {
+    function renderTable(hasLineFilter) {
       const tbody = document.getElementById('tableBody');
       if (filteredEntries.length === 0) {
         tbody.innerHTML = `<tr><td colspan="9" class="py-10 text-center text-slate-400">查無符合條件的訂單資料</td></tr>`;
@@ -1584,7 +1624,7 @@
           const est = estLines[k] !== undefined ? Number(estLines[k]) : 0;
 
           const isMatchedLine = entry.matchedLineIndices.has(k);
-          const highlight = hasKeyword && entry.isPartialMatch;
+          const highlight = hasLineFilter && entry.isPartialMatch;
 
           const pClass = highlight
             ? (isMatchedLine
@@ -1635,8 +1675,9 @@
 
     function showMoreRows() {
       displayLimit += 100;
-      const hasKeyword = document.getElementById('searchInput').value.trim().length > 0;
-      renderTable(hasKeyword);
+      const hasLineFilter = document.getElementById('searchInput').value.trim().length > 0
+        || document.getElementById('onlyZeroEstCheck').checked;
+      renderTable(hasLineFilter);
     }
 
     function resetFilters() {
@@ -1644,6 +1685,7 @@
       document.getElementById('monthFilter').value = '';
       document.getElementById('statusFilter').value = '';
       document.getElementById('subIdFilter').value = '';
+      document.getElementById('onlyZeroEstCheck').checked = false;
       selectedDateFilter = '';
       selectedHourFilter = null;
       chartGranularity = 'monthly';
