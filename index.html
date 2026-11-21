@@ -248,7 +248,7 @@
       </div>
     </div>
 
-    <!-- 主內容區：分頁切換列（訂單明細 vs. 熱銷單品 Top 20） -->
+    <!-- 主內容區：分頁切換列（訂單明細 vs. 熱銷單品 Top 50） -->
     <div id="viewSwitcherBar" class="hidden flex flex-wrap items-center justify-between gap-3 mb-3">
       <div class="inline-flex rounded-xl bg-slate-200/80 p-1 text-sm font-medium">
         <button type="button" id="tabBtnOrders" onclick="switchMainTab('orders')"
@@ -258,7 +258,7 @@
         </button>
         <button type="button" id="tabBtnTopProducts" onclick="switchMainTab('topProducts')"
           class="px-4 py-2 rounded-lg text-slate-600 hover:text-slate-900 transition flex items-center gap-2">
-          <span>熱銷單品 Top 20 排行榜</span>
+          <span>熱銷單品 Top 50 排行榜</span>
           <span id="tabBadgeProducts" class="px-2 py-0.5 text-xs rounded-full bg-slate-300/70 text-slate-700 font-mono">0</span>
         </button>
       </div>
@@ -317,10 +317,10 @@
         </button>
       </div>
 
-      <!-- 分頁 2：熱銷單品 Top 20 排行榜（所有計算金額皆顯示至小數點後兩位） -->
+      <!-- 分頁 2：熱銷單品 Top 50 排行榜（所有計算金額皆顯示至小數點後兩位） -->
       <div id="topProductsContainer" class="hidden">
         <div class="px-4 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-          <span>已自動拆解多品訂單並依商品名稱歸戶；預估分潤採單品明細直接加總，結算分潤依成交額佔比推算（計算結果顯示至小數後兩位）。</span>
+          <span>已自動拆解多品訂單並依商品名稱歸戶；預估分潤採單品明細直接加總，結算分潤依成交額佔比推算。</span>
           <span id="topProductSummaryNote" class="font-medium text-slate-600">共歸戶 0 項不重複商品</span>
         </div>
         <div class="overflow-x-auto">
@@ -346,6 +346,7 @@
   <script>
     const DEFAULT_GAS_API_URL = '';
     const DEFAULT_API_TOKEN = '';
+    const TOP_PRODUCT_LIMIT = 50; // 熱銷單品排行榜顯示上限（可依需求修改）
 
     let allOrders = [];
     let baseFilteredEntries = [];
@@ -375,7 +376,7 @@
     const cleanNum = (n) => Math.round((Number(n) || 0) * 1e10) / 1e10;
     const fmtNum = (n) => cleanNum(n).toLocaleString(undefined, { maximumFractionDigits: 10 });
 
-    // 四捨五入至小數點後兩位（供統計面板、圖表與 Top 20 排行榜計算加總使用）
+    // 四捨五入至小數點後兩位（供統計面板、圖表與排行榜計算加總使用）
     const round2 = (n) => Math.round(((Number(n) || 0) + Number.EPSILON) * 100) / 100;
     const fmt2 = (n) => round2(n).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
@@ -386,6 +387,7 @@
       document.getElementById('apiUrlInput').value = savedUrl;
       document.getElementById('apiTokenInput').value = savedToken;
       document.getElementById('loadRangeSelect').value = '3';
+      document.querySelector('#tabBtnTopProducts span').textContent = `熱銷單品 Top ${TOP_PRODUCT_LIMIT} 排行榜`;
 
       if (!savedUrl) {
         document.getElementById('configPanel').classList.remove('hidden');
@@ -838,7 +840,7 @@
         dateFilteredEntries = baseFilteredEntries;
       }
 
-      // 第二層：套用小時鎖定（供統計卡片、Top 20 排行榜與訂單明細表使用）
+      // 第二層：套用小時鎖定（供統計卡片、排行榜與訂單明細表使用）
       if (selectedHourFilter !== null) {
         filteredEntries = dateFilteredEntries.filter(
           entry => extractOrderHour(entry.order.orderTime) === selectedHourFilter
@@ -943,7 +945,7 @@
           : `訂單完成率 ${completionRate}%（共 ${totalOrders} 筆總單）`;
     }
 
-    // 熱銷單品 Top 20 排行榜：所有加總與推算分潤皆限制至小數點後兩位
+    // 熱銷單品排行榜：依 TOP_PRODUCT_LIMIT 截取名次，所有計算金額皆限制至小數點後兩位
     function updateTopProducts(entries) {
       const excludeCancelled = document.getElementById('excludeCancelledCheck').checked;
       const productMap = new Map();
@@ -999,10 +1001,11 @@
 
       allProducts.sort((a, b) => b[productSortBy] - a[productSortBy]);
 
-      currentTopProducts = allProducts.slice(0, 20);
+      currentTopProducts = allProducts.slice(0, TOP_PRODUCT_LIMIT);
 
+      document.querySelector('#tabBtnTopProducts span').textContent = `熱銷單品 Top ${TOP_PRODUCT_LIMIT} 排行榜`;
       document.getElementById('tabBadgeProducts').textContent =
-        allProducts.length > 20 ? `Top 20 / ${allProducts.length}` : allProducts.length;
+        allProducts.length > TOP_PRODUCT_LIMIT ? `Top ${TOP_PRODUCT_LIMIT} / ${allProducts.length}` : allProducts.length;
       document.getElementById('topProductSummaryNote').textContent =
         `共歸戶 ${allProducts.length.toLocaleString()} 項不重複商品`;
 
