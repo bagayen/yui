@@ -94,13 +94,50 @@
         <div class="md:col-span-2 flex items-end">
           <button onclick="resetFilters()"
             class="w-full px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition">
-            清除篩選
+            清除全部篩選
+          </button>
+        </div>
+      </div>
+
+      <!-- 日期區間查詢列 -->
+      <div class="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="font-semibold text-slate-500 uppercase">日期區間：</span>
+          <input type="date" id="dateStartInput" onchange="onDateRangeInputChange()"
+            class="px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <span class="text-slate-400 font-medium">～</span>
+          <input type="date" id="dateEndInput" onchange="onDateRangeInputChange()"
+            class="px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+
+          <span id="dateRangeBadge" class="hidden px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-semibold">
+            共 0 天
+          </span>
+
+          <button type="button" id="btnClearDateRange" onclick="clearDateRange()"
+            class="hidden px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-medium transition">
+            清除日期
+          </button>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-1.5">
+          <span class="text-slate-400 mr-0.5">快選：</span>
+          <button type="button" id="btnQuick7d" onclick="setQuickDateRange(7)"
+            class="px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition">
+            近 7 日
+          </button>
+          <button type="button" id="btnQuick14d" onclick="setQuickDateRange(14)"
+            class="px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition">
+            近 14 日
+          </button>
+          <button type="button" id="btnQuick30d" onclick="setQuickDateRange(30)"
+            class="px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition">
+            近 30 日
           </button>
         </div>
       </div>
 
       <!-- 計算邏輯與異常抓漏選項 -->
-      <div class="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-slate-600">
+      <div class="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-slate-600">
         <label class="inline-flex items-center gap-2 cursor-pointer select-none">
           <input type="checkbox" id="excludeCancelledCheck" checked onchange="applyFilters()"
             class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
@@ -158,8 +195,8 @@
               <h2 class="text-base font-bold text-slate-900" id="chartTitle">每月訂單數與金額變化</h2>
               <button type="button" id="selectedDateBadge" onclick="clearSelectedDate()"
                 class="hidden inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 hover:bg-blue-200 transition"
-                title="點擊取消日期篩選">
-                <span id="selectedDateBadgeText">已鎖定日期：2026-11-11</span>
+                title="點擊取消單日篩選">
+                <span id="selectedDateBadgeText">已鎖定單日：2026-11-11</span>
                 <span class="text-blue-500 font-bold">✕</span>
               </button>
             </div>
@@ -470,6 +507,12 @@
     let filteredEntries = [];
     let displayLimit = 100;
 
+    // 日期區間篩選狀態
+    let dateRangeFilter = { start: '', end: '' };
+    let quickDateDaysActive = null; // 7 | 14 | 30 | null
+    let datasetMinDate = '';
+    let datasetMaxDate = '';
+
     // 左側月/日條狀圖狀態變數
     let trendChartInstance = null;
     let chartGranularity = 'monthly'; // 'monthly' | 'daily'
@@ -561,6 +604,7 @@
 
     function onLoadRangeChange() {
       document.getElementById('monthFilter').value = '';
+      clearDateRangeStateOnly();
       selectedDateFilter = '';
       selectedWeekdayFilter = null;
       hourRangeFilter = null;
@@ -655,10 +699,32 @@
 
       const statusSet = new Set();
       const subIdSet = new Set();
+      let minD = '';
+      let maxD = '';
+
       data.forEach(item => {
         if (item.status) statusSet.add(item.status);
         if (item.subId) subIdSet.add(item.subId);
+        const dKey = getTimeBucketKey(item, 'daily');
+        if (dKey && /^\d{4}-\d{2}-\d{2}$/.test(dKey)) {
+          if (!minD || dKey < minD) minD = dKey;
+          if (!maxD || dKey > maxD) maxD = dKey;
+        }
       });
+
+      datasetMinDate = minD;
+      datasetMaxDate = maxD;
+
+      const startInput = document.getElementById('dateStartInput');
+      const endInput = document.getElementById('dateEndInput');
+      if (minD) {
+        startInput.min = minD;
+        endInput.min = minD;
+      }
+      if (maxD) {
+        startInput.max = maxD;
+        endInput.max = maxD;
+      }
 
       const statusSelect = document.getElementById('statusFilter');
       statusSelect.innerHTML = '<option value="">全部狀態</option>';
@@ -721,10 +787,134 @@
 
     function onMonthFilterChange() {
       const selectedMonth = document.getElementById('monthFilter').value;
+      clearDateRangeStateOnly();
       selectedDateFilter = '';
       chartGranularity = selectedMonth ? 'daily' : 'monthly';
       updateChartControlButtons();
       applyFilters();
+    }
+
+    // 日期區間篩選控制函式
+    function parseLocalDate(ymd) {
+      const m = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!m) return null;
+      return new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
+    }
+
+    function formatLocalDate(dt) {
+      const y = dt.getFullYear();
+      const m = String(dt.getMonth() + 1).padStart(2, '0');
+      const d = String(dt.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function clearDateRangeStateOnly() {
+      dateRangeFilter = { start: '', end: '' };
+      quickDateDaysActive = null;
+      document.getElementById('dateStartInput').value = '';
+      document.getElementById('dateEndInput').value = '';
+      syncDateRangeControls();
+    }
+
+    function onDateRangeInputChange(fromQuickDays = null) {
+      let startVal = document.getElementById('dateStartInput').value;
+      let endVal = document.getElementById('dateEndInput').value;
+
+      if (startVal && endVal && startVal > endVal) {
+        const tmp = startVal;
+        startVal = endVal;
+        endVal = tmp;
+        document.getElementById('dateStartInput').value = startVal;
+        document.getElementById('dateEndInput').value = endVal;
+      }
+
+      dateRangeFilter = { start: startVal, end: endVal };
+      quickDateDaysActive = fromQuickDays;
+      selectedDateFilter = '';
+      selectedWeekdayFilter = null;
+
+      // 若原先有選特定月份，且選擇的日期區間超出該月，則自動切回「全部已載入月份」避免交集為空
+      const currentMonth = document.getElementById('monthFilter').value;
+      if (currentMonth && (startVal || endVal)) {
+        const startInMonth = !startVal || startVal.startsWith(currentMonth);
+        const endInMonth = !endVal || endVal.startsWith(currentMonth);
+        if (!startInMonth || !endInMonth) {
+          document.getElementById('monthFilter').value = '';
+        }
+      }
+
+      if (startVal || endVal) {
+        chartGranularity = 'daily';
+      } else if (!document.getElementById('monthFilter').value) {
+        chartGranularity = 'monthly';
+      }
+
+      updateChartControlButtons();
+      syncDateRangeControls();
+      applyFilters();
+    }
+
+    function setQuickDateRange(days) {
+      if (quickDateDaysActive === days) {
+        clearDateRange();
+        return;
+      }
+
+      const anchorStr = datasetMaxDate || formatLocalDate(new Date());
+      const endDt = parseLocalDate(anchorStr) || new Date();
+      const startDt = new Date(endDt.getFullYear(), endDt.getMonth(), endDt.getDate() - (days - 1));
+      let startStr = formatLocalDate(startDt);
+
+      if (datasetMinDate && startStr < datasetMinDate) {
+        startStr = datasetMinDate;
+      }
+
+      document.getElementById('dateStartInput').value = startStr;
+      document.getElementById('dateEndInput').value = anchorStr;
+      onDateRangeInputChange(days);
+    }
+
+    function clearDateRange() {
+      clearDateRangeStateOnly();
+      selectedDateFilter = '';
+      if (!document.getElementById('monthFilter').value) {
+        chartGranularity = 'monthly';
+        updateChartControlButtons();
+      }
+      applyFilters();
+    }
+
+    function syncDateRangeControls() {
+      const hasRange = Boolean(dateRangeFilter.start || dateRangeFilter.end);
+      const badgeEl = document.getElementById('dateRangeBadge');
+      const clearBtn = document.getElementById('btnClearDateRange');
+
+      const quickDefault = 'px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition';
+      const quickActive = 'px-2.5 py-1 rounded-lg border border-blue-300 bg-blue-600 text-white font-semibold transition';
+
+      document.getElementById('btnQuick7d').className = quickDateDaysActive === 7 ? quickActive : quickDefault;
+      document.getElementById('btnQuick14d').className = quickDateDaysActive === 14 ? quickActive : quickDefault;
+      document.getElementById('btnQuick30d').className = quickDateDaysActive === 30 ? quickActive : quickDefault;
+
+      clearBtn.classList.toggle('hidden', !hasRange);
+
+      if (dateRangeFilter.start && dateRangeFilter.end) {
+        const sDt = parseLocalDate(dateRangeFilter.start);
+        const eDt = parseLocalDate(dateRangeFilter.end);
+        const diffDays = (sDt && eDt)
+          ? Math.round((eDt - sDt) / (1000 * 60 * 60 * 24)) + 1
+          : 1;
+        badgeEl.textContent = `共 ${diffDays} 天`;
+        badgeEl.classList.remove('hidden');
+      } else if (dateRangeFilter.start) {
+        badgeEl.textContent = `${dateRangeFilter.start} 起`;
+        badgeEl.classList.remove('hidden');
+      } else if (dateRangeFilter.end) {
+        badgeEl.textContent = `截至 ${dateRangeFilter.end}`;
+        badgeEl.classList.remove('hidden');
+      } else {
+        badgeEl.classList.add('hidden');
+      }
     }
 
     function clearSelectedDate() {
@@ -736,7 +926,7 @@
       const badgeEl = document.getElementById('selectedDateBadge');
       const textEl = document.getElementById('selectedDateBadgeText');
       if (selectedDateFilter) {
-        textEl.textContent = `已鎖定日期：${selectedDateFilter}`;
+        textEl.textContent = `已鎖定單日：${selectedDateFilter}`;
         badgeEl.classList.remove('hidden');
       } else {
         badgeEl.classList.add('hidden');
@@ -750,7 +940,6 @@
       if (range.start <= range.end) {
         return hour >= range.start && hour <= range.end;
       }
-      // 跨午夜區間（例如 22 ~ 1 代表 22, 23, 0, 1）
       return hour >= range.start || hour <= range.end;
     }
 
@@ -830,7 +1019,7 @@
 
     function toggleWeekdaySelection(dayIdx) {
       selectedWeekdayFilter = (selectedWeekdayFilter === dayIdx) ? null : dayIdx;
-      selectedDateFilter = ''; // 鎖定星期幾時解除單日鎖定，避免衝突
+      selectedDateFilter = '';
       applyFilters();
     }
 
@@ -1026,7 +1215,6 @@
         }
       }
 
-      // 抓漏模式：只保留預估分潤為 $0 的品項
       if (onlyZeroEst) {
         if (!hasPerLineEst) {
           if (cleanNum(fullEst) > 0) return { matched: false };
@@ -1077,6 +1265,7 @@
       const selectedSubId = document.getElementById('subIdFilter').value;
       const excludeCancelled = document.getElementById('excludeCancelledCheck').checked;
       const onlyZeroEst = document.getElementById('onlyZeroEstCheck').checked;
+      const hasDateRange = Boolean(dateRangeFilter.start || dateRangeFilter.end);
 
       baseFilteredEntries = [];
 
@@ -1085,6 +1274,13 @@
         if (selectedMonth && item.month !== selectedMonth) continue;
         if (selectedStatus && item.status !== selectedStatus) continue;
         if (selectedSubId && item.subId !== selectedSubId) continue;
+
+        if (hasDateRange) {
+          const orderDate = getTimeBucketKey(item, 'daily');
+          if (!orderDate || orderDate === '未知日期') continue;
+          if (dateRangeFilter.start && orderDate < dateRangeFilter.start) continue;
+          if (dateRangeFilter.end && orderDate > dateRangeFilter.end) continue;
+        }
 
         const isCancelled = String(item.status || '').trim().toUpperCase() === 'CANCELLED';
         if (onlyZeroEst && excludeCancelled && isCancelled) continue;
@@ -1445,25 +1641,43 @@
         bucket.settled += o.settledCommission * settledWeight;
       }
 
-      if (chartGranularity === 'daily' && selectedMonth && bucketMap.size > 0) {
-        let maxDay = 1;
-        bucketMap.forEach((_, dateKey) => {
-          if (dateKey.startsWith(selectedMonth + '-')) {
-            const d = parseInt(dateKey.slice(8, 10), 10);
-            if (!isNaN(d) && d > maxDay) maxDay = d;
+      // 補齊無訂單的日期，讓趨勢軸連續
+      if (chartGranularity === 'daily') {
+        if (dateRangeFilter.start && dateRangeFilter.end) {
+          const sDt = parseLocalDate(dateRangeFilter.start);
+          const eDt = parseLocalDate(dateRangeFilter.end);
+          if (sDt && eDt) {
+            const spanDays = Math.round((eDt - sDt) / (1000 * 60 * 60 * 24)) + 1;
+            if (spanDays >= 1 && spanDays <= 90) {
+              for (let offset = 0; offset < spanDays; offset++) {
+                const cur = new Date(sDt.getFullYear(), sDt.getMonth(), sDt.getDate() + offset);
+                const fullDate = formatLocalDate(cur);
+                if (!bucketMap.has(fullDate)) {
+                  bucketMap.set(fullDate, { orders: 0, gmv: 0, est: 0, settled: 0 });
+                }
+              }
+            }
           }
-        });
-        for (let d = 1; d <= maxDay; d++) {
-          const fullDate = `${selectedMonth}-${String(d).padStart(2, '0')}`;
-          if (!bucketMap.has(fullDate)) {
-            bucketMap.set(fullDate, { orders: 0, gmv: 0, est: 0, settled: 0 });
+        } else if (selectedMonth && bucketMap.size > 0) {
+          let maxDay = 1;
+          bucketMap.forEach((_, dateKey) => {
+            if (dateKey.startsWith(selectedMonth + '-')) {
+              const d = parseInt(dateKey.slice(8, 10), 10);
+              if (!isNaN(d) && d > maxDay) maxDay = d;
+            }
+          });
+          for (let d = 1; d <= maxDay; d++) {
+            const fullDate = `${selectedMonth}-${String(d).padStart(2, '0')}`;
+            if (!bucketMap.has(fullDate)) {
+              bucketMap.set(fullDate, { orders: 0, gmv: 0, est: 0, settled: 0 });
+            }
           }
         }
       }
 
       const sortedKeys = Array.from(bucketMap.keys()).sort((a, b) => a.localeCompare(b));
       const labels = sortedKeys.map(k =>
-        (chartGranularity === 'daily' && selectedMonth) ? k.slice(5) : k
+        chartGranularity === 'daily' ? k.slice(5) : k
       );
 
       const orderSeries = sortedKeys.map(k => bucketMap.get(k).orders);
@@ -1600,7 +1814,7 @@
                   const hint = chartGranularity === 'monthly'
                     ? '💡 點擊可下鑽檢視該月每日明細'
                     : (selectedDateFilter === key
-                        ? '💡 再點一次可取消日期鎖定'
+                        ? '💡 再點一次可取消單日鎖定'
                         : '💡 點擊可篩選該日訂單明細');
                   return [
                     '──────────────────',
@@ -1715,7 +1929,6 @@
         }
       }
 
-      // 更新區間貢獻佔比提示列
       const contribBar = document.getElementById('hourContributionBar');
       if (hourRangeFilter && !isHourlyChartCollapsed) {
         const orderPct = totalValidOrders > 0 ? ((rangeOrders / totalValidOrders) * 100).toFixed(1) : '0.0';
@@ -1761,7 +1974,6 @@
       const seriesData = hourlyBuckets.map(b => metricConfig.getVal(b));
       const maxVal = Math.max(...seriesData, 0);
 
-      // 更新尖峰時段徽章
       const peakBadge = document.getElementById('peakHourBadge');
       if (maxVal > 0) {
         const peakIdx = seriesData.indexOf(maxVal);
@@ -1956,7 +2168,6 @@
         };
       });
 
-      // 更新「日均買氣最旺」徽章
       const bestBadge = document.getElementById('bestWeekdayBadge');
       const maxAvgOrders = Math.max(...orderedStats.map(s => s.avgOrders), 0);
       if (maxAvgOrders > 0) {
@@ -1968,7 +2179,6 @@
 
       if (isWeekdayCollapsed) return;
 
-      // 渲染右側 7 天精簡對照表
       const tbody = document.getElementById('weekdayTableBody');
       tbody.innerHTML = orderedStats.map(s => {
         const isSelected = selectedWeekdayFilter === s.dayIdx;
@@ -1991,7 +2201,6 @@
         `;
       }).join('');
 
-      // 渲染左側雙軸圖表
       const labels = orderedStats.map(s => s.label);
       const isAvgMode = weekdayChartMode === 'avg';
 
@@ -2231,6 +2440,7 @@
       document.getElementById('statusFilter').value = '';
       document.getElementById('subIdFilter').value = '';
       document.getElementById('onlyZeroEstCheck').checked = false;
+      clearDateRangeStateOnly();
       selectedDateFilter = '';
       selectedWeekdayFilter = null;
       hourRangeFilter = null;
