@@ -121,6 +121,15 @@
 
         <div class="flex flex-wrap items-center gap-1.5">
           <span class="text-slate-400 mr-0.5">快選：</span>
+          <button type="button" id="btnQuickLatestDay" onclick="setQuickSingleDayOffset(0)"
+            class="px-2.5 py-1 rounded-lg border border-violet-200 bg-violet-50/70 text-violet-700 hover:bg-violet-100 font-medium transition">
+            最新日
+          </button>
+          <button type="button" id="btnQuickYesterday" onclick="setQuickSingleDayOffset(1)"
+            class="px-2.5 py-1 rounded-lg border border-violet-200 bg-violet-50/70 text-violet-700 hover:bg-violet-100 font-medium transition">
+            前一日
+          </button>
+          <span class="text-slate-300 mx-0.5">|</span>
           <button type="button" id="btnQuick7d" onclick="setQuickDateRange(7)"
             class="px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition">
             近 7 日
@@ -158,30 +167,178 @@
       </div>
     </div>
 
-    <!-- 即時統計卡片（統一計算至小數點後兩位） -->
+    <!-- 即時統計卡片（統一計算至小數點後兩位，鎖定日期/區間/單月時自動顯示上月同日漲跌） -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-        <div class="text-xs font-medium text-slate-500">有效訂單數</div>
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-xs font-medium text-slate-500">有效訂單數</span>
+          <span id="momBadgeOrders" class="hidden text-[11px] font-semibold px-2 py-0.5 rounded-full"></span>
+        </div>
         <div class="text-2xl font-bold text-slate-900 mt-1" id="statOrderCount">0 筆</div>
         <div class="text-xs text-slate-400 mt-1" id="statOrderBreakdown">完成 0｜待結算 0｜取消 0</div>
       </div>
 
       <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-        <div class="text-xs font-medium text-slate-500" id="statGmvTitle">有效成交額</div>
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-xs font-medium text-slate-500" id="statGmvTitle">有效成交額</span>
+          <span id="momBadgeGmv" class="hidden text-[11px] font-semibold px-2 py-0.5 rounded-full"></span>
+        </div>
         <div class="text-2xl font-bold text-blue-600 mt-1" id="statGmv">$0</div>
         <div class="text-xs text-slate-400 mt-1" id="statAovRate">平均客單價 $0｜平均分潤率 0.0%</div>
       </div>
 
       <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-        <div class="text-xs font-medium text-slate-500">預估分潤總計</div>
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-xs font-medium text-slate-500">預估分潤總計</span>
+          <span id="momBadgeEst" class="hidden text-[11px] font-semibold px-2 py-0.5 rounded-full"></span>
+        </div>
         <div class="text-2xl font-bold text-amber-600 mt-1" id="statEst">$0</div>
         <div class="text-xs text-slate-400 mt-1" id="statEstBreakdown">待結算 $0｜已完成 $0</div>
       </div>
 
       <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-        <div class="text-xs font-medium text-slate-500">結算總分潤</div>
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-xs font-medium text-slate-500">結算總分潤</span>
+          <span id="momBadgeSettled" class="hidden text-[11px] font-semibold px-2 py-0.5 rounded-full"></span>
+        </div>
         <div class="text-2xl font-bold text-emerald-600 mt-1" id="statSettled">$0</div>
         <div class="text-xs text-slate-400 mt-1" id="statSettledNote">訂單完成率 0.0%</div>
+      </div>
+    </div>
+
+    <!-- 上月同日 / 同期比較專屬面板 -->
+    <div id="momComparisonSection" class="hidden bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-6">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
+        <div>
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="text-base font-bold text-slate-900">上月同日 / 同期比較</h2>
+            <span id="momModeBadge"
+              class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-50 text-violet-700 border border-violet-200">
+              最新日 vs 上月同日
+            </span>
+          </div>
+          <p class="text-xs text-slate-500 mt-1" id="momPeriodSummary">
+            對比區間：-- vs --
+          </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2 text-xs">
+          <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1">
+            <span class="text-slate-500">指定對比日：</span>
+            <input type="date" id="momTargetDateInput" onchange="onMomTargetDatePick()"
+              class="bg-transparent text-slate-700 font-medium focus:outline-none">
+          </div>
+
+          <button type="button" id="btnJumpPrevMom" onclick="jumpToPrevMomPeriod()"
+            class="px-3 py-1.5 rounded-lg bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 font-semibold transition">
+            查看上月同日明細
+          </button>
+
+          <button type="button" id="btnReturnFromPrevMom" onclick="returnFromPrevMomPeriod()"
+            class="hidden px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-semibold transition">
+            返回本期明細
+          </button>
+
+          <button type="button" onclick="toggleMomBody()" id="btnToggleMom"
+            class="px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition">
+            收合
+          </button>
+        </div>
+      </div>
+
+      <!-- 尚未載入上月分頁時的提醒列 -->
+      <div id="momMissingMonthAlert" class="hidden mb-4 px-3.5 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900 flex flex-wrap items-center justify-between gap-2">
+        <span id="momMissingMonthText">目前僅載入近 3 個月資料，尚未包含上月分頁，無法完整比對。</span>
+        <button type="button" onclick="expandLoadRangeForMom()"
+          class="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-md font-semibold transition">
+          改為載入近 6 個月
+        </button>
+      </div>
+
+      <div id="momComparisonBody" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- 卡片 1：有效訂單數 -->
+        <div class="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80">
+          <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
+            <span>有效訂單數</span>
+            <span id="momCardOrderDelta" class="font-bold">--</span>
+          </div>
+          <div class="flex items-baseline justify-between gap-2">
+            <div>
+              <div class="text-[11px] text-slate-400" id="momCardCurLabel1">本期</div>
+              <div class="text-lg font-bold text-slate-900" id="momCardCurOrders">0 筆</div>
+            </div>
+            <div class="text-right">
+              <div class="text-[11px] text-slate-400" id="momCardPrevLabel1">上月同日</div>
+              <div class="text-sm font-semibold text-slate-600" id="momCardPrevOrders">0 筆</div>
+            </div>
+          </div>
+          <div class="text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-slate-200/70" id="momCardOrderDiff">
+            較上月同日：0 筆
+          </div>
+        </div>
+
+        <!-- 卡片 2：有效成交額 -->
+        <div class="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80">
+          <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
+            <span>有效成交額</span>
+            <span id="momCardGmvDelta" class="font-bold">--</span>
+          </div>
+          <div class="flex items-baseline justify-between gap-2">
+            <div>
+              <div class="text-[11px] text-slate-400" id="momCardCurLabel2">本期</div>
+              <div class="text-lg font-bold text-blue-600" id="momCardCurGmv">$0</div>
+            </div>
+            <div class="text-right">
+              <div class="text-[11px] text-slate-400" id="momCardPrevLabel2">上月同日</div>
+              <div class="text-sm font-semibold text-slate-600" id="momCardPrevGmv">$0</div>
+            </div>
+          </div>
+          <div class="text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-slate-200/70" id="momCardGmvDiff">
+            較上月同日：$0
+          </div>
+        </div>
+
+        <!-- 卡片 3：預估分潤 -->
+        <div class="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80">
+          <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
+            <span>預估分潤</span>
+            <span id="momCardEstDelta" class="font-bold">--</span>
+          </div>
+          <div class="flex items-baseline justify-between gap-2">
+            <div>
+              <div class="text-[11px] text-slate-400" id="momCardCurLabel3">本期</div>
+              <div class="text-lg font-bold text-amber-600" id="momCardCurEst">$0</div>
+            </div>
+            <div class="text-right">
+              <div class="text-[11px] text-slate-400" id="momCardPrevLabel3">上月同日</div>
+              <div class="text-sm font-semibold text-slate-600" id="momCardPrevEst">$0</div>
+            </div>
+          </div>
+          <div class="text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-slate-200/70" id="momCardEstDiff">
+            較上月同日：$0
+          </div>
+        </div>
+
+        <!-- 卡片 4：平均客單價 -->
+        <div class="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80">
+          <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
+            <span>平均客單價</span>
+            <span id="momCardAovDelta" class="font-bold">--</span>
+          </div>
+          <div class="flex items-baseline justify-between gap-2">
+            <div>
+              <div class="text-[11px] text-slate-400" id="momCardCurLabel4">本期</div>
+              <div class="text-lg font-bold text-slate-800" id="momCardCurAov">$0</div>
+            </div>
+            <div class="text-right">
+              <div class="text-[11px] text-slate-400" id="momCardPrevLabel4">上月同日</div>
+              <div class="text-sm font-semibold text-slate-600" id="momCardPrevAov">$0</div>
+            </div>
+          </div>
+          <div class="text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-slate-200/70" id="momCardAovDiff">
+            較上月同日：$0
+          </div>
+        </div>
       </div>
     </div>
 
@@ -242,7 +399,7 @@
         </div>
       </div>
 
-      <!-- 右側：每日下單時間分佈線圖（24 小時 + 自訂時段區間篩選） -->
+      <!-- 右側：每日下單時間分佈線圖（24 小時 + 自訂時段區間篩選 + 疊加上月同日曲線） -->
       <div class="xl:col-span-6 bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
           <div>
@@ -259,10 +416,16 @@
                 <span class="text-amber-600 font-bold">✕</span>
               </button>
             </div>
-            <p class="text-xs text-slate-500 mt-0.5">可點擊單一節點，或框選起訖小時比較帶貨檔期與長尾貢獻</p>
+            <p class="text-xs text-slate-500 mt-0.5">可點擊單一節點、框選起訖小時，或疊加上月同日曲線對比每小時熱度</p>
           </div>
 
           <div class="flex flex-wrap items-center gap-2">
+            <label class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-600 cursor-pointer select-none hover:bg-slate-100">
+              <input type="checkbox" id="overlayPrevMonthHourlyCheck" checked onchange="applyFilters()"
+                class="rounded border-slate-300 text-violet-600 focus:ring-violet-500">
+              <span>疊加上月曲線</span>
+            </label>
+
             <div class="inline-flex rounded-lg bg-slate-100 p-1 text-xs font-medium">
               <button type="button" id="btnHourlyMetricOrders" onclick="setHourlyMetricType('orders')"
                 class="px-2.5 py-1.5 rounded-md bg-white text-violet-700 shadow-sm transition">
@@ -501,6 +664,7 @@
     const TOP_PRODUCT_LIMIT = 50; // 熱銷單品排行榜顯示上限（可依需求修改）
 
     let allOrders = [];
+    let loadedMonths = [];
     let baseFilteredEntries = [];
     let dateFilteredEntries = [];
     let weekdayFilteredEntries = [];
@@ -512,6 +676,11 @@
     let quickDateDaysActive = null; // 7 | 14 | 30 | null
     let datasetMinDate = '';
     let datasetMaxDate = '';
+
+    // 上月同日比較狀態
+    let isMomCollapsed = false;
+    let momSavedCurrentPeriod = null; // 點擊「查看上月同日明細」前的原區間快照
+    let latestMomResult = null;       // 供 24 小時折線圖疊加上月同日曲線使用
 
     // 左側月/日條狀圖狀態變數
     let trendChartInstance = null;
@@ -605,6 +774,7 @@
     function onLoadRangeChange() {
       document.getElementById('monthFilter').value = '';
       clearDateRangeStateOnly();
+      momSavedCurrentPeriod = null;
       selectedDateFilter = '';
       selectedWeekdayFilter = null;
       hourRangeFilter = null;
@@ -658,24 +828,25 @@
         const res = await response.json();
         if (res.status === 'error') throw new Error(res.message);
 
-        const months = res.months || [];
-        const totalAvailable = res.totalAvailableMonths || months.length;
+        loadedMonths = res.months || [];
+        const totalAvailable = res.totalAvailableMonths || loadedMonths.length;
         allOrders = res.records || [];
 
-        if (months.length > 0) {
-          const rangeSpan = `${months[months.length - 1]} ～ ${months[0]}`;
+        if (loadedMonths.length > 0) {
+          const rangeSpan = `${loadedMonths[loadedMonths.length - 1]} ～ ${loadedMonths[0]}`;
           document.getElementById('subtitleText').textContent =
-            totalAvailable > months.length
-              ? `已載入 ${months.length} 個月份分頁（${rangeSpan}，資料庫共 ${totalAvailable} 個歷史月份）`
-              : `已完整載入全部 ${months.length} 個月份分頁（${rangeSpan}）`;
+            totalAvailable > loadedMonths.length
+              ? `已載入 ${loadedMonths.length} 個月份分頁（${rangeSpan}，資料庫共 ${totalAvailable} 個歷史月份）`
+              : `已完整載入全部 ${loadedMonths.length} 個月份分頁（${rangeSpan}）`;
         } else {
           document.getElementById('subtitleText').textContent = '找不到符合 YYYY-MM 格式的工作表';
         }
 
-        populateDropdowns(months, allOrders);
+        populateDropdowns(loadedMonths, allOrders);
         applyFilters();
 
         loadingEl.classList.add('hidden');
+        document.getElementById('momComparisonSection').classList.remove('hidden');
         document.getElementById('chartSection').classList.remove('hidden');
         document.getElementById('weekdaySection').classList.remove('hidden');
         document.getElementById('viewSwitcherBar').classList.remove('hidden');
@@ -717,13 +888,16 @@
 
       const startInput = document.getElementById('dateStartInput');
       const endInput = document.getElementById('dateEndInput');
+      const momTargetInput = document.getElementById('momTargetDateInput');
       if (minD) {
         startInput.min = minD;
         endInput.min = minD;
+        momTargetInput.min = minD;
       }
       if (maxD) {
         startInput.max = maxD;
         endInput.max = maxD;
+        momTargetInput.max = maxD;
       }
 
       const statusSelect = document.getElementById('statusFilter');
@@ -788,13 +962,14 @@
     function onMonthFilterChange() {
       const selectedMonth = document.getElementById('monthFilter').value;
       clearDateRangeStateOnly();
+      momSavedCurrentPeriod = null;
       selectedDateFilter = '';
       chartGranularity = selectedMonth ? 'daily' : 'monthly';
       updateChartControlButtons();
       applyFilters();
     }
 
-    // 日期區間篩選控制函式
+    // 本地日期解析與加減月數工具（支援月底大小月自動對齊，如 3/31 -> 2/28）
     function parseLocalDate(ymd) {
       const m = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
       if (!m) return null;
@@ -806,6 +981,25 @@
       const m = String(dt.getMonth() + 1).padStart(2, '0');
       const d = String(dt.getDate()).padStart(2, '0');
       return `${y}-${m}-${d}`;
+    }
+
+    function shiftYmdByMonths(ymd, deltaMonths) {
+      const m = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!m) return '';
+      let y = parseInt(m[1], 10);
+      let mo = parseInt(m[2], 10) - 1 + deltaMonths;
+      const d = parseInt(m[3], 10);
+      y += Math.floor(mo / 12);
+      mo = ((mo % 12) + 12) % 12;
+      const maxDaysInMonth = new Date(y, mo + 1, 0).getDate();
+      const clampedDay = Math.min(d, maxDaysInMonth);
+      return `${y}-${String(mo + 1).padStart(2, '0')}-${String(clampedDay).padStart(2, '0')}`;
+    }
+
+    function getWeekdayNameFromYmd(ymd) {
+      const dt = parseLocalDate(ymd);
+      if (!dt) return '';
+      return WEEKDAY_NAMES[dt.getDay()] || '';
     }
 
     function clearDateRangeStateOnly() {
@@ -830,10 +1024,10 @@
 
       dateRangeFilter = { start: startVal, end: endVal };
       quickDateDaysActive = fromQuickDays;
+      momSavedCurrentPeriod = null;
       selectedDateFilter = '';
       selectedWeekdayFilter = null;
 
-      // 若原先有選特定月份，且選擇的日期區間超出該月，則自動切回「全部已載入月份」避免交集為空
       const currentMonth = document.getElementById('monthFilter').value;
       if (currentMonth && (startVal || endVal)) {
         const startInMonth = !startVal || startVal.startsWith(currentMonth);
@@ -852,6 +1046,26 @@
       updateChartControlButtons();
       syncDateRangeControls();
       applyFilters();
+    }
+
+    // 單日快選：offsetDays = 0 為最新日，1 為前一日
+    function setQuickSingleDayOffset(offsetDays) {
+      const anchorStr = datasetMaxDate || formatLocalDate(new Date());
+      const baseDt = parseLocalDate(anchorStr) || new Date();
+      const targetDt = new Date(baseDt.getFullYear(), baseDt.getMonth(), baseDt.getDate() - offsetDays);
+      let targetStr = formatLocalDate(targetDt);
+      if (datasetMinDate && targetStr < datasetMinDate) {
+        targetStr = datasetMinDate;
+      }
+
+      if (dateRangeFilter.start === targetStr && dateRangeFilter.end === targetStr) {
+        clearDateRange();
+        return;
+      }
+
+      document.getElementById('dateStartInput').value = targetStr;
+      document.getElementById('dateEndInput').value = targetStr;
+      onDateRangeInputChange(null);
     }
 
     function setQuickDateRange(days) {
@@ -876,6 +1090,7 @@
 
     function clearDateRange() {
       clearDateRangeStateOnly();
+      momSavedCurrentPeriod = null;
       selectedDateFilter = '';
       if (!document.getElementById('monthFilter').value) {
         chartGranularity = 'monthly';
@@ -892,6 +1107,19 @@
       const quickDefault = 'px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition';
       const quickActive = 'px-2.5 py-1 rounded-lg border border-blue-300 bg-blue-600 text-white font-semibold transition';
 
+      const singleDefault = 'px-2.5 py-1 rounded-lg border border-violet-200 bg-violet-50/70 text-violet-700 hover:bg-violet-100 font-medium transition';
+      const singleActive = 'px-2.5 py-1 rounded-lg border border-violet-600 bg-violet-600 text-white font-semibold transition';
+
+      const anchorStr = datasetMaxDate || formatLocalDate(new Date());
+      const baseDt = parseLocalDate(anchorStr) || new Date();
+      const yesterdayStr = formatLocalDate(new Date(baseDt.getFullYear(), baseDt.getMonth(), baseDt.getDate() - 1));
+
+      const isLatestActive = dateRangeFilter.start === anchorStr && dateRangeFilter.end === anchorStr;
+      const isYesterdayActive = dateRangeFilter.start === yesterdayStr && dateRangeFilter.end === yesterdayStr;
+
+      document.getElementById('btnQuickLatestDay').className = isLatestActive ? singleActive : singleDefault;
+      document.getElementById('btnQuickYesterday').className = isYesterdayActive ? singleActive : singleDefault;
+
       document.getElementById('btnQuick7d').className = quickDateDaysActive === 7 ? quickActive : quickDefault;
       document.getElementById('btnQuick14d').className = quickDateDaysActive === 14 ? quickActive : quickDefault;
       document.getElementById('btnQuick30d').className = quickDateDaysActive === 30 ? quickActive : quickDefault;
@@ -899,12 +1127,17 @@
       clearBtn.classList.toggle('hidden', !hasRange);
 
       if (dateRangeFilter.start && dateRangeFilter.end) {
-        const sDt = parseLocalDate(dateRangeFilter.start);
-        const eDt = parseLocalDate(dateRangeFilter.end);
-        const diffDays = (sDt && eDt)
-          ? Math.round((eDt - sDt) / (1000 * 60 * 60 * 24)) + 1
-          : 1;
-        badgeEl.textContent = `共 ${diffDays} 天`;
+        if (dateRangeFilter.start === dateRangeFilter.end) {
+          const wd = getWeekdayNameFromYmd(dateRangeFilter.start);
+          badgeEl.textContent = `單日 (${wd})`;
+        } else {
+          const sDt = parseLocalDate(dateRangeFilter.start);
+          const eDt = parseLocalDate(dateRangeFilter.end);
+          const diffDays = (sDt && eDt)
+            ? Math.round((eDt - sDt) / (1000 * 60 * 60 * 24)) + 1
+            : 1;
+          badgeEl.textContent = `共 ${diffDays} 天`;
+        }
         badgeEl.classList.remove('hidden');
       } else if (dateRangeFilter.start) {
         badgeEl.textContent = `${dateRangeFilter.start} 起`;
@@ -931,6 +1164,75 @@
       } else {
         badgeEl.classList.add('hidden');
       }
+    }
+
+    // 上月同日比較交互控制
+    function toggleMomBody() {
+      isMomCollapsed = !isMomCollapsed;
+      document.getElementById('momComparisonBody').classList.toggle('hidden', isMomCollapsed);
+      document.getElementById('btnToggleMom').textContent = isMomCollapsed ? '展開' : '收合';
+    }
+
+    function onMomTargetDatePick() {
+      const picked = document.getElementById('momTargetDateInput').value;
+      if (!picked) return;
+      document.getElementById('dateStartInput').value = picked;
+      document.getElementById('dateEndInput').value = picked;
+      onDateRangeInputChange(null);
+    }
+
+    function jumpToPrevMomPeriod() {
+      if (!latestMomResult || !latestMomResult.prevStart) return;
+      momSavedCurrentPeriod = {
+        month: document.getElementById('monthFilter').value,
+        start: dateRangeFilter.start,
+        end: dateRangeFilter.end,
+        selectedDate: selectedDateFilter,
+        quickDays: quickDateDaysActive
+      };
+
+      document.getElementById('monthFilter').value = '';
+      selectedDateFilter = '';
+      selectedWeekdayFilter = null;
+      document.getElementById('dateStartInput').value = latestMomResult.prevStart;
+      document.getElementById('dateEndInput').value = latestMomResult.prevEnd;
+
+      dateRangeFilter = { start: latestMomResult.prevStart, end: latestMomResult.prevEnd };
+      quickDateDaysActive = null;
+      chartGranularity = 'daily';
+      updateChartControlButtons();
+      syncDateRangeControls();
+      applyFilters();
+    }
+
+    function returnFromPrevMomPeriod() {
+      if (!momSavedCurrentPeriod) return;
+      const saved = momSavedCurrentPeriod;
+      momSavedCurrentPeriod = null;
+
+      document.getElementById('monthFilter').value = saved.month || '';
+      selectedDateFilter = saved.selectedDate || '';
+      document.getElementById('dateStartInput').value = saved.start || '';
+      document.getElementById('dateEndInput').value = saved.end || '';
+      dateRangeFilter = { start: saved.start || '', end: saved.end || '' };
+      quickDateDaysActive = saved.quickDays || null;
+
+      chartGranularity = (saved.month || saved.start || saved.end) ? 'daily' : 'monthly';
+      updateChartControlButtons();
+      syncDateRangeControls();
+      applyFilters();
+    }
+
+    function expandLoadRangeForMom() {
+      const rangeSel = document.getElementById('loadRangeSelect');
+      if (rangeSel.value === '3') {
+        rangeSel.value = '6';
+      } else if (rangeSel.value === '6') {
+        rangeSel.value = '12';
+      } else {
+        rangeSel.value = 'all';
+      }
+      loadData();
     }
 
     // 自訂時段區間控制函式
@@ -1257,6 +1559,288 @@
       };
     }
 
+    // 計算指定起訖日期區間內的指標與 24 小時分佈（供上月同日／同期對比使用）
+    function computeMetricsForDateWindow(startYmd, endYmd) {
+      const rawKeyword = document.getElementById('searchInput').value.trim().toLowerCase();
+      const keywords = rawKeyword ? rawKeyword.split(/\s+/) : [];
+      const selectedStatus = document.getElementById('statusFilter').value;
+      const selectedSubId = document.getElementById('subIdFilter').value;
+      const excludeCancelled = document.getElementById('excludeCancelledCheck').checked;
+      const onlyZeroEst = document.getElementById('onlyZeroEstCheck').checked;
+      const prorateCommission = document.getElementById('prorateCommissionCheck').checked;
+
+      let completedCount = 0;
+      let pendingCount = 0;
+      let cancelledCount = 0;
+      let gmv = 0;
+      let est = 0;
+      let settled = 0;
+
+      const hourlyBuckets = Array.from({ length: 24 }, (_, h) => ({
+        hour: h,
+        orders: 0,
+        gmv: 0,
+        est: 0,
+        settled: 0
+      }));
+
+      for (let i = 0; i < allOrders.length; i++) {
+        const item = allOrders[i];
+        if (selectedStatus && item.status !== selectedStatus) continue;
+        if (selectedSubId && item.subId !== selectedSubId) continue;
+
+        const orderDate = getTimeBucketKey(item, 'daily');
+        if (!orderDate || orderDate === '未知日期') continue;
+        if (startYmd && orderDate < startYmd) continue;
+        if (endYmd && orderDate > endYmd) continue;
+
+        if (selectedWeekdayFilter !== null && extractOrderWeekday(item.orderTime) !== selectedWeekdayFilter) {
+          continue;
+        }
+
+        const hour = extractOrderHour(item.orderTime);
+        if (hourRangeFilter && !isHourInRange(hour, hourRangeFilter)) {
+          continue;
+        }
+
+        const statusUpper = String(item.status || '').trim().toUpperCase();
+        const isCancelled = statusUpper === 'CANCELLED';
+        const isCompleted = statusUpper === 'COMPLETED';
+        if (onlyZeroEst && excludeCancelled && isCancelled) continue;
+
+        const evalRes = evaluateOrderMatch(item, keywords, onlyZeroEst);
+        if (!evalRes.matched) continue;
+
+        if (isCancelled) cancelledCount++;
+        else if (isCompleted) completedCount++;
+        else pendingCount++;
+
+        if (!(excludeCancelled && isCancelled)) {
+          const estVal = (prorateCommission || evalRes.hasPerLineEst) ? evalRes.matchedEst : evalRes.fullEst;
+          const settledWeight = (prorateCommission && evalRes.isPartialMatch) ? evalRes.ratio : 1;
+          const settledVal = item.settledCommission * settledWeight;
+
+          gmv += evalRes.matchedGmv;
+          est += estVal;
+          settled += settledVal;
+
+          if (hour >= 0 && hour <= 23) {
+            hourlyBuckets[hour].orders += 1;
+            hourlyBuckets[hour].gmv += evalRes.matchedGmv;
+            hourlyBuckets[hour].est += estVal;
+            hourlyBuckets[hour].settled += settledVal;
+          }
+        }
+      }
+
+      const validOrders = completedCount + pendingCount;
+      const totalOrders = validOrders + cancelledCount;
+      const displayOrders = excludeCancelled ? validOrders : totalOrders;
+      const aov = displayOrders > 0 ? Math.round(gmv / displayOrders) : 0;
+
+      return {
+        orders: displayOrders,
+        gmv: round2(gmv),
+        est: round2(est),
+        settled: round2(settled),
+        aov,
+        hourlyBuckets
+      };
+    }
+
+    // 解析目前應該比較的「本期」與「上月同日／同期」區間
+    function resolveMoMComparisonContext() {
+      const selectedMonth = document.getElementById('monthFilter').value;
+      let curStart = '';
+      let curEnd = '';
+      let modeLabel = '最新日 vs 上月同日';
+      let isAutoLatestDay = false;
+
+      if (selectedDateFilter) {
+        curStart = selectedDateFilter;
+        curEnd = selectedDateFilter;
+        modeLabel = '單日 vs 上月同日';
+      } else if (dateRangeFilter.start || dateRangeFilter.end) {
+        curStart = dateRangeFilter.start || datasetMinDate || dateRangeFilter.end;
+        curEnd = dateRangeFilter.end || datasetMaxDate || dateRangeFilter.start;
+        modeLabel = (curStart === curEnd) ? '單日 vs 上月同日' : '區間 vs 上月同期';
+      } else if (selectedMonth) {
+        let maxInMonth = '';
+        for (let i = 0; i < allOrders.length; i++) {
+          const d = getTimeBucketKey(allOrders[i], 'daily');
+          if (d && d.startsWith(selectedMonth + '-')) {
+            if (!maxInMonth || d > maxInMonth) maxInMonth = d;
+          }
+        }
+        curStart = `${selectedMonth}-01`;
+        curEnd = maxInMonth || curStart;
+        modeLabel = '本月同期 vs 上月同期';
+      } else {
+        curStart = datasetMaxDate || formatLocalDate(new Date());
+        curEnd = curStart;
+        modeLabel = '最新日 vs 上月同日';
+        isAutoLatestDay = true;
+      }
+
+      const prevStart = shiftYmdByMonths(curStart, -1);
+      const prevEnd = shiftYmdByMonths(curEnd, -1);
+
+      return {
+        curStart,
+        curEnd,
+        prevStart,
+        prevEnd,
+        modeLabel,
+        isSingleDay: curStart === curEnd,
+        isAutoLatestDay
+      };
+    }
+
+    function formatDeltaPct(curVal, prevVal) {
+      if (prevVal === 0 && curVal === 0) {
+        return { text: '0.0%', tone: 'flat' };
+      }
+      if (prevVal === 0 && curVal > 0) {
+        return { text: '▲ 新增', tone: 'up' };
+      }
+      const pct = ((curVal - prevVal) / Math.abs(prevVal)) * 100;
+      const sign = pct > 0 ? '+' : '';
+      const arrow = pct > 0 ? '▲ ' : (pct < 0 ? '▼ ' : '');
+      const tone = pct > 0 ? 'up' : (pct < 0 ? 'down' : 'flat');
+      return { text: `${arrow}${sign}${pct.toFixed(1)}%`, tone };
+    }
+
+    function updateMoMComparison() {
+      const ctx = resolveMoMComparisonContext();
+      if (!ctx.curStart || !ctx.prevStart) {
+        latestMomResult = null;
+        return;
+      }
+
+      const curStats = computeMetricsForDateWindow(ctx.curStart, ctx.curEnd);
+      const prevStats = computeMetricsForDateWindow(ctx.prevStart, ctx.prevEnd);
+
+      const prevStartMonth = ctx.prevStart.slice(0, 7);
+      const prevEndMonth = ctx.prevEnd.slice(0, 7);
+      const isPrevMonthLoaded = loadedMonths.length === 0 ||
+        loadedMonths.includes(prevStartMonth) ||
+        loadedMonths.includes(prevEndMonth);
+
+      latestMomResult = {
+        ...ctx,
+        curStats,
+        prevStats,
+        isPrevMonthLoaded
+      };
+
+      // 更新專屬對比面板標題與日期資訊
+      document.getElementById('momModeBadge').textContent = ctx.modeLabel;
+      document.getElementById('momTargetDateInput').value = ctx.curEnd;
+
+      const curText = ctx.isSingleDay
+        ? `${ctx.curStart} (${getWeekdayNameFromYmd(ctx.curStart)})`
+        : `${ctx.curStart} ～ ${ctx.curEnd}`;
+      const prevText = ctx.isSingleDay
+        ? `${ctx.prevStart} (${getWeekdayNameFromYmd(ctx.prevStart)})`
+        : `${ctx.prevStart} ～ ${ctx.prevEnd}`;
+
+      document.getElementById('momPeriodSummary').textContent =
+        `本期：${curText} vs. 上月對比：${prevText}`;
+
+      // 缺少上月分頁提醒
+      const missingAlert = document.getElementById('momMissingMonthAlert');
+      if (!isPrevMonthLoaded) {
+        document.getElementById('momMissingMonthText').textContent =
+          `資料庫尚未載入「${prevStartMonth}」月份分頁，因此上月對比數值顯示為 0。`;
+        missingAlert.classList.remove('hidden');
+      } else {
+        missingAlert.classList.add('hidden');
+      }
+
+      // 切換檢視上月明細 / 返回本期明細按鈕狀態
+      document.getElementById('btnReturnFromPrevMom').classList.toggle('hidden', !momSavedCurrentPeriod);
+
+      const shortCur = ctx.isSingleDay ? ctx.curStart.slice(5) : `${ctx.curStart.slice(5)}~${ctx.curEnd.slice(5)}`;
+      const shortPrev = ctx.isSingleDay ? ctx.prevStart.slice(5) : `${ctx.prevStart.slice(5)}~${ctx.prevEnd.slice(5)}`;
+
+      for (let n = 1; n <= 4; n++) {
+        document.getElementById(`momCardCurLabel${n}`).textContent = `本期 (${shortCur})`;
+        document.getElementById(`momCardPrevLabel${n}`).textContent = `上月 (${shortPrev})`;
+      }
+
+      const applyDeltaStyle = (el, deltaObj) => {
+        el.textContent = deltaObj.text;
+        if (deltaObj.tone === 'up') {
+          el.className = 'text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700';
+        } else if (deltaObj.tone === 'down') {
+          el.className = 'text-xs font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700';
+        } else {
+          el.className = 'text-xs font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-600';
+        }
+      };
+
+      // 1. 訂單數
+      const orderDelta = formatDeltaPct(curStats.orders, prevStats.orders);
+      const orderDiff = curStats.orders - prevStats.orders;
+      document.getElementById('momCardCurOrders').textContent = `${curStats.orders.toLocaleString()} 筆`;
+      document.getElementById('momCardPrevOrders').textContent = `${prevStats.orders.toLocaleString()} 筆`;
+      document.getElementById('momCardOrderDiff').textContent =
+        `較上月同期：${orderDiff >= 0 ? '+' : ''}${orderDiff.toLocaleString()} 筆`;
+      applyDeltaStyle(document.getElementById('momCardOrderDelta'), orderDelta);
+
+      // 2. 成交額
+      const gmvDelta = formatDeltaPct(curStats.gmv, prevStats.gmv);
+      const gmvDiff = round2(curStats.gmv - prevStats.gmv);
+      document.getElementById('momCardCurGmv').textContent = `$${fmt2(curStats.gmv)}`;
+      document.getElementById('momCardPrevGmv').textContent = `$${fmt2(prevStats.gmv)}`;
+      document.getElementById('momCardGmvDiff').textContent =
+        `較上月同期：${gmvDiff >= 0 ? '+$' : '-$'}${fmt2(Math.abs(gmvDiff))}`;
+      applyDeltaStyle(document.getElementById('momCardGmvDelta'), gmvDelta);
+
+      // 3. 預估分潤
+      const estDelta = formatDeltaPct(curStats.est, prevStats.est);
+      const estDiff = round2(curStats.est - prevStats.est);
+      document.getElementById('momCardCurEst').textContent = `$${fmt2(curStats.est)}`;
+      document.getElementById('momCardPrevEst').textContent = `$${fmt2(prevStats.est)}`;
+      document.getElementById('momCardEstDiff').textContent =
+        `較上月同期：${estDiff >= 0 ? '+$' : '-$'}${fmt2(Math.abs(estDiff))}`;
+      applyDeltaStyle(document.getElementById('momCardEstDelta'), estDelta);
+
+      // 4. 平均客單價
+      const aovDelta = formatDeltaPct(curStats.aov, prevStats.aov);
+      const aovDiff = curStats.aov - prevStats.aov;
+      document.getElementById('momCardCurAov').textContent = `$${curStats.aov.toLocaleString()}`;
+      document.getElementById('momCardPrevAov').textContent = `$${prevStats.aov.toLocaleString()}`;
+      document.getElementById('momCardAovDiff').textContent =
+        `較上月同期：${aovDiff >= 0 ? '+$' : '-$'}${Math.abs(aovDiff).toLocaleString()}`;
+      applyDeltaStyle(document.getElementById('momCardAovDelta'), aovDelta);
+
+      // 若使用者明確鎖定了單日、日期區間或單月，同步在上方四張統計卡片顯示 MoM 漲跌徽章
+      const topBadges = [
+        { id: 'momBadgeOrders', delta: orderDelta },
+        { id: 'momBadgeGmv', delta: gmvDelta },
+        { id: 'momBadgeEst', delta: estDelta },
+        { id: 'momBadgeSettled', delta: formatDeltaPct(curStats.settled, prevStats.settled) }
+      ];
+
+      topBadges.forEach(item => {
+        const el = document.getElementById(item.id);
+        if (ctx.isAutoLatestDay || !isPrevMonthLoaded) {
+          el.classList.add('hidden');
+        } else {
+          el.classList.remove('hidden');
+          el.textContent = `較 ${shortPrev} ${item.delta.text}`;
+          if (item.delta.tone === 'up') {
+            el.className = 'text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200';
+          } else if (item.delta.tone === 'down') {
+            el.className = 'text-[11px] font-semibold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200';
+          } else {
+            el.className = 'text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600';
+          }
+        }
+      });
+    }
+
     function applyFilters() {
       const rawKeyword = document.getElementById('searchInput').value.trim().toLowerCase();
       const keywords = rawKeyword ? rawKeyword.split(/\s+/) : [];
@@ -1294,7 +1878,7 @@
         }
       }
 
-      // 第一層：套用單日鎖定（供「星期一至星期日買氣分佈」使用）
+      // 第一層：套用單日鎖定
       if (selectedDateFilter) {
         dateFilteredEntries = baseFilteredEntries.filter(
           entry => getTimeBucketKey(entry.order, 'daily') === selectedDateFilter
@@ -1303,7 +1887,7 @@
         dateFilteredEntries = baseFilteredEntries;
       }
 
-      // 第二層：套用星期幾鎖定（供「每日下單時間分佈」與貢獻佔比分母使用）
+      // 第二層：套用星期幾鎖定
       if (selectedWeekdayFilter !== null) {
         weekdayFilteredEntries = dateFilteredEntries.filter(
           entry => extractOrderWeekday(entry.order.orderTime) === selectedWeekdayFilter
@@ -1312,7 +1896,7 @@
         weekdayFilteredEntries = dateFilteredEntries;
       }
 
-      // 第三層：套用小時區間鎖定（供統計卡片、排行榜與訂單明細表使用）
+      // 第三層：套用小時區間鎖定
       if (hourRangeFilter) {
         filteredEntries = weekdayFilteredEntries.filter(
           entry => isHourInRange(extractOrderHour(entry.order.orderTime), hourRangeFilter)
@@ -1329,6 +1913,7 @@
       syncHourRangeControls();
 
       updateSummaryCards(filteredEntries, hasLineFilter, onlyZeroEst);
+      updateMoMComparison();
       updateTrendChart(baseFilteredEntries);
       updateWeekdayChart(dateFilteredEntries);
       updateHourlyChart(weekdayFilteredEntries);
@@ -1641,7 +2226,6 @@
         bucket.settled += o.settledCommission * settledWeight;
       }
 
-      // 補齊無訂單的日期，讓趨勢軸連續
       if (chartGranularity === 'daily') {
         if (dateRangeFilter.start && dateRangeFilter.end) {
           const sDt = parseLocalDate(dateRangeFilter.start);
@@ -1879,10 +2463,11 @@
       });
     }
 
-    // 右側：每日 24 小時下單時間分佈線圖 + 區間貢獻計算
+    // 右側：每日 24 小時下單時間分佈線圖 + 區間貢獻計算 + 疊加上月曲線
     function updateHourlyChart(entries) {
       const excludeCancelled = document.getElementById('excludeCancelledCheck').checked;
       const prorateCommission = document.getElementById('prorateCommissionCheck').checked;
+      const showPrevOverlay = document.getElementById('overlayPrevMonthHourlyCheck').checked;
 
       const hourlyBuckets = Array.from({ length: 24 }, (_, h) => ({
         hour: h,
@@ -1946,7 +2531,7 @@
 
       const metricConfig = {
         orders: {
-          label: '訂單數 (筆)',
+          label: '本期訂單數 (筆)',
           getVal: (b) => b.orders,
           borderColor: 'rgb(124, 58, 237)',
           fillColor: 'rgba(124, 58, 237, 0.12)',
@@ -1954,7 +2539,7 @@
           isCurrency: false
         },
         gmv: {
-          label: '有效成交額 ($)',
+          label: '本期成交額 ($)',
           getVal: (b) => round2(b.gmv),
           borderColor: 'rgb(37, 99, 235)',
           fillColor: 'rgba(37, 99, 235, 0.12)',
@@ -1962,7 +2547,7 @@
           isCurrency: true
         },
         est: {
-          label: '預估分潤 ($)',
+          label: '本期預估分潤 ($)',
           getVal: (b) => round2(b.est),
           borderColor: 'rgb(217, 119, 6)',
           fillColor: 'rgba(217, 119, 6, 0.12)',
@@ -2000,6 +2585,51 @@
         return (maxVal > 0 && seriesData[idx] === maxVal) ? '#f59e0b' : metricConfig.pointHex;
       });
 
+      const datasets = [
+        {
+          label: metricConfig.label,
+          data: seriesData,
+          borderColor: metricConfig.borderColor,
+          backgroundColor: metricConfig.fillColor,
+          borderWidth: 2.2,
+          fill: true,
+          tension: 0.35,
+          pointRadius: pointRadii,
+          pointHoverRadius: 6.5,
+          pointBackgroundColor: pointColors,
+          pointBorderColor: '#ffffff',
+          pointBorderWidth: 1.5
+        }
+      ];
+
+      // 當使用者鎖定了單日、區間或單月，且勾選「疊加上月曲線」時，加入上月同日/同期虛線對比
+      const hasPrevOverlay = showPrevOverlay &&
+        latestMomResult &&
+        !latestMomResult.isAutoLatestDay &&
+        latestMomResult.isPrevMonthLoaded;
+
+      if (hasPrevOverlay) {
+        const prevHourly = latestMomResult.prevStats.hourlyBuckets;
+        const prevSeriesData = prevHourly.map(b => metricConfig.getVal(b));
+        const prevShort = latestMomResult.isSingleDay
+          ? latestMomResult.prevStart.slice(5)
+          : `${latestMomResult.prevStart.slice(5)}~${latestMomResult.prevEnd.slice(5)}`;
+
+        datasets.push({
+          label: `上月對比 (${prevShort})`,
+          data: prevSeriesData,
+          borderColor: 'rgba(100, 116, 139, 0.75)',
+          backgroundColor: 'transparent',
+          borderWidth: 1.8,
+          borderDash: [5, 4],
+          fill: false,
+          tension: 0.35,
+          pointRadius: 2,
+          pointHoverRadius: 5,
+          pointBackgroundColor: 'rgb(100, 116, 139)'
+        });
+      }
+
       const ctx = document.getElementById('hourlyOrderLineChart').getContext('2d');
       if (hourlyChartInstance) {
         hourlyChartInstance.destroy();
@@ -2009,22 +2639,7 @@
         type: 'line',
         data: {
           labels: labels,
-          datasets: [
-            {
-              label: metricConfig.label,
-              data: seriesData,
-              borderColor: metricConfig.borderColor,
-              backgroundColor: metricConfig.fillColor,
-              borderWidth: 2.2,
-              fill: true,
-              tension: 0.35,
-              pointRadius: pointRadii,
-              pointHoverRadius: 6.5,
-              pointBackgroundColor: pointColors,
-              pointBorderColor: '#ffffff',
-              pointBorderWidth: 1.5
-            }
-          ]
+          datasets: datasets
         },
         options: {
           responsive: true,
@@ -2045,7 +2660,14 @@
           },
           plugins: {
             legend: {
-              display: false
+              display: hasPrevOverlay,
+              position: 'top',
+              align: 'end',
+              labels: {
+                usePointStyle: true,
+                boxWidth: 8,
+                font: { size: 11 }
+              }
             },
             tooltip: {
               backgroundColor: 'rgba(15, 23, 42, 0.92)',
@@ -2057,10 +2679,16 @@
                   return `時段：${hh}:00 ～ ${hh}:59`;
                 },
                 label: (context) => {
+                  const val = context.parsed.y;
+                  if (context.datasetIndex === 1) {
+                    return metricConfig.isCurrency
+                      ? ` ${context.dataset.label}：$${fmt2(val)}`
+                      : ` ${context.dataset.label}：${val.toLocaleString()} 筆`;
+                  }
                   const h = context.dataIndex;
                   const b = hourlyBuckets[h];
                   const share = totalValidOrders > 0 ? ((b.orders / totalValidOrders) * 100).toFixed(1) : '0.0';
-                  return ` 訂單數：${b.orders.toLocaleString()} 筆（佔 ${share}%）`;
+                  return ` 本期訂單數：${b.orders.toLocaleString()} 筆（佔 ${share}%）`;
                 },
                 afterBody: (items) => {
                   const h = items[0].dataIndex;
@@ -2070,9 +2698,8 @@
                     ? '💡 再點一次可取消時段鎖定'
                     : '💡 點擊可單獨鎖定該小時明細';
                   return [
-                    `有效成交額：$${fmt2(b.gmv)}`,
-                    `預估分潤 ：$${fmt2(b.est)}`,
-                    `結算總分潤：$${fmt2(b.settled)}`,
+                    `本期成交額：$${fmt2(b.gmv)}`,
+                    `本期預估分潤：$${fmt2(b.est)}`,
                     '──────────────────',
                     hint
                   ];
@@ -2441,6 +3068,7 @@
       document.getElementById('subIdFilter').value = '';
       document.getElementById('onlyZeroEstCheck').checked = false;
       clearDateRangeStateOnly();
+      momSavedCurrentPeriod = null;
       selectedDateFilter = '';
       selectedWeekdayFilter = null;
       hourRangeFilter = null;
