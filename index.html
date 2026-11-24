@@ -167,7 +167,7 @@
       </div>
     </div>
 
-    <!-- 即時統計卡片（統一計算至小數點後兩位，鎖定日期/區間/單月時自動顯示上月同日漲跌） -->
+    <!-- 即時統計卡片（統一計算至小數點後兩位，鎖定日期/區間/單月時自動顯示漲跌） -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
         <div class="flex items-center justify-between gap-2">
@@ -206,37 +206,45 @@
       </div>
     </div>
 
-    <!-- 上月同日 / 同期比較專屬面板 -->
+    <!-- 雙日對比 / 上月同期比較專屬面板 -->
     <div id="momComparisonSection" class="hidden bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-6">
       <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
         <div>
           <div class="flex flex-wrap items-center gap-2">
-            <h2 class="text-base font-bold text-slate-900">上月同日 / 同期比較</h2>
+            <h2 class="text-base font-bold text-slate-900">雙日對比 / 上月同期比較</h2>
             <span id="momModeBadge"
               class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-50 text-violet-700 border border-violet-200">
               最新日 vs 上月同日
             </span>
           </div>
           <p class="text-xs text-slate-500 mt-1" id="momPeriodSummary">
-            對比區間：-- vs --
+            基準：-- vs 對比：--
           </p>
         </div>
 
         <div class="flex flex-wrap items-center gap-2 text-xs">
-          <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1">
-            <span class="text-slate-500">指定對比日：</span>
-            <input type="date" id="momTargetDateInput" onchange="onMomTargetDatePick()"
-              class="bg-transparent text-slate-700 font-medium focus:outline-none">
+          <!-- 自訂兩天對比選擇器 -->
+          <div class="flex flex-wrap items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1">
+            <span class="text-slate-500 font-medium">基準日：</span>
+            <input type="date" id="customBaseDateInput" onchange="onCustomBaseDatePick()"
+              title="設定基準日（主畫面下方會同步顯示此日明細）"
+              class="bg-transparent text-slate-800 font-semibold focus:outline-none">
+            <span class="text-slate-400 font-bold px-0.5">vs</span>
+            <span class="text-slate-500 font-medium">對比日：</span>
+            <input type="date" id="customCompareDateInput" onchange="onCustomCompareDatePick()"
+              title="設定要拿來對照的另一天日期"
+              class="bg-transparent text-violet-700 font-semibold focus:outline-none">
           </div>
 
-          <button type="button" id="btnJumpPrevMom" onclick="jumpToPrevMomPeriod()"
+          <button type="button" id="btnSwapCompareDays" onclick="swapCustomCompareDates()"
+            title="將基準日與對比日互換，以便往下查看對比日的完整明細"
             class="px-3 py-1.5 rounded-lg bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 font-semibold transition">
-            查看上月同日明細
+            對調兩天
           </button>
 
-          <button type="button" id="btnReturnFromPrevMom" onclick="returnFromPrevMomPeriod()"
-            class="hidden px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-semibold transition">
-            返回本期明細
+          <button type="button" id="btnResetCustomCompare" onclick="resetCustomCompareDate()"
+            class="hidden px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition">
+            重設上月同日
           </button>
 
           <button type="button" onclick="toggleMomBody()" id="btnToggleMom"
@@ -246,12 +254,12 @@
         </div>
       </div>
 
-      <!-- 尚未載入上月分頁時的提醒列 -->
+      <!-- 尚未載入對比月份分頁時的提醒列 -->
       <div id="momMissingMonthAlert" class="hidden mb-4 px-3.5 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900 flex flex-wrap items-center justify-between gap-2">
-        <span id="momMissingMonthText">目前僅載入近 3 個月資料，尚未包含上月分頁，無法完整比對。</span>
+        <span id="momMissingMonthText">資料庫尚未載入對比月份分頁，因此對比數值顯示為 0。</span>
         <button type="button" onclick="expandLoadRangeForMom()"
           class="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-md font-semibold transition">
-          改為載入近 6 個月
+          擴大載入歷史月份
         </button>
       </div>
 
@@ -264,16 +272,16 @@
           </div>
           <div class="flex items-baseline justify-between gap-2">
             <div>
-              <div class="text-[11px] text-slate-400" id="momCardCurLabel1">本期</div>
+              <div class="text-[11px] text-slate-400" id="momCardCurLabel1">基準</div>
               <div class="text-lg font-bold text-slate-900" id="momCardCurOrders">0 筆</div>
             </div>
             <div class="text-right">
-              <div class="text-[11px] text-slate-400" id="momCardPrevLabel1">上月同日</div>
+              <div class="text-[11px] text-slate-400" id="momCardPrevLabel1">對比</div>
               <div class="text-sm font-semibold text-slate-600" id="momCardPrevOrders">0 筆</div>
             </div>
           </div>
           <div class="text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-slate-200/70" id="momCardOrderDiff">
-            較上月同日：0 筆
+            較對比日：0 筆
           </div>
         </div>
 
@@ -285,16 +293,16 @@
           </div>
           <div class="flex items-baseline justify-between gap-2">
             <div>
-              <div class="text-[11px] text-slate-400" id="momCardCurLabel2">本期</div>
+              <div class="text-[11px] text-slate-400" id="momCardCurLabel2">基準</div>
               <div class="text-lg font-bold text-blue-600" id="momCardCurGmv">$0</div>
             </div>
             <div class="text-right">
-              <div class="text-[11px] text-slate-400" id="momCardPrevLabel2">上月同日</div>
+              <div class="text-[11px] text-slate-400" id="momCardPrevLabel2">對比</div>
               <div class="text-sm font-semibold text-slate-600" id="momCardPrevGmv">$0</div>
             </div>
           </div>
           <div class="text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-slate-200/70" id="momCardGmvDiff">
-            較上月同日：$0
+            較對比日：$0
           </div>
         </div>
 
@@ -306,16 +314,16 @@
           </div>
           <div class="flex items-baseline justify-between gap-2">
             <div>
-              <div class="text-[11px] text-slate-400" id="momCardCurLabel3">本期</div>
+              <div class="text-[11px] text-slate-400" id="momCardCurLabel3">基準</div>
               <div class="text-lg font-bold text-amber-600" id="momCardCurEst">$0</div>
             </div>
             <div class="text-right">
-              <div class="text-[11px] text-slate-400" id="momCardPrevLabel3">上月同日</div>
+              <div class="text-[11px] text-slate-400" id="momCardPrevLabel3">對比</div>
               <div class="text-sm font-semibold text-slate-600" id="momCardPrevEst">$0</div>
             </div>
           </div>
           <div class="text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-slate-200/70" id="momCardEstDiff">
-            較上月同日：$0
+            較對比日：$0
           </div>
         </div>
 
@@ -327,16 +335,16 @@
           </div>
           <div class="flex items-baseline justify-between gap-2">
             <div>
-              <div class="text-[11px] text-slate-400" id="momCardCurLabel4">本期</div>
+              <div class="text-[11px] text-slate-400" id="momCardCurLabel4">基準</div>
               <div class="text-lg font-bold text-slate-800" id="momCardCurAov">$0</div>
             </div>
             <div class="text-right">
-              <div class="text-[11px] text-slate-400" id="momCardPrevLabel4">上月同日</div>
+              <div class="text-[11px] text-slate-400" id="momCardPrevLabel4">對比</div>
               <div class="text-sm font-semibold text-slate-600" id="momCardPrevAov">$0</div>
             </div>
           </div>
           <div class="text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-slate-200/70" id="momCardAovDiff">
-            較上月同日：$0
+            較對比日：$0
           </div>
         </div>
       </div>
@@ -399,7 +407,7 @@
         </div>
       </div>
 
-      <!-- 右側：每日下單時間分佈線圖（24 小時 + 自訂時段區間篩選 + 疊加上月同日曲線） -->
+      <!-- 右側：每日下單時間分佈線圖（24 小時 + 自訂時段區間篩選 + 疊加對比日曲線） -->
       <div class="xl:col-span-6 bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
           <div>
@@ -416,14 +424,14 @@
                 <span class="text-amber-600 font-bold">✕</span>
               </button>
             </div>
-            <p class="text-xs text-slate-500 mt-0.5">可點擊單一節點、框選起訖小時，或疊加上月同日曲線對比每小時熱度</p>
+            <p class="text-xs text-slate-500 mt-0.5">可點擊單一節點、框選起訖小時，或疊加對比日曲線對照每小時熱度</p>
           </div>
 
           <div class="flex flex-wrap items-center gap-2">
             <label class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-600 cursor-pointer select-none hover:bg-slate-100">
               <input type="checkbox" id="overlayPrevMonthHourlyCheck" checked onchange="applyFilters()"
                 class="rounded border-slate-300 text-violet-600 focus:ring-violet-500">
-              <span>疊加上月曲線</span>
+              <span>疊加對比日曲線</span>
             </label>
 
             <div class="inline-flex rounded-lg bg-slate-100 p-1 text-xs font-medium">
@@ -677,10 +685,10 @@
     let datasetMinDate = '';
     let datasetMaxDate = '';
 
-    // 上月同日比較狀態
+    // 雙日對比 / 上月同日比較狀態
     let isMomCollapsed = false;
-    let momSavedCurrentPeriod = null; // 點擊「查看上月同日明細」前的原區間快照
-    let latestMomResult = null;       // 供 24 小時折線圖疊加上月同日曲線使用
+    let customCompareDate = ''; // 若為空字串則自動使用「上月同日」，有值時則使用自訂對比日
+    let latestMomResult = null;   // 供 24 小時折線圖疊加對比日曲線使用
 
     // 左側月/日條狀圖狀態變數
     let trendChartInstance = null;
@@ -774,7 +782,7 @@
     function onLoadRangeChange() {
       document.getElementById('monthFilter').value = '';
       clearDateRangeStateOnly();
-      momSavedCurrentPeriod = null;
+      customCompareDate = '';
       selectedDateFilter = '';
       selectedWeekdayFilter = null;
       hourRangeFilter = null;
@@ -888,16 +896,19 @@
 
       const startInput = document.getElementById('dateStartInput');
       const endInput = document.getElementById('dateEndInput');
-      const momTargetInput = document.getElementById('momTargetDateInput');
+      const baseDateInput = document.getElementById('customBaseDateInput');
+      const compareDateInput = document.getElementById('customCompareDateInput');
       if (minD) {
         startInput.min = minD;
         endInput.min = minD;
-        momTargetInput.min = minD;
+        baseDateInput.min = minD;
+        compareDateInput.min = minD;
       }
       if (maxD) {
         startInput.max = maxD;
         endInput.max = maxD;
-        momTargetInput.max = maxD;
+        baseDateInput.max = maxD;
+        compareDateInput.max = maxD;
       }
 
       const statusSelect = document.getElementById('statusFilter');
@@ -962,7 +973,7 @@
     function onMonthFilterChange() {
       const selectedMonth = document.getElementById('monthFilter').value;
       clearDateRangeStateOnly();
-      momSavedCurrentPeriod = null;
+      customCompareDate = '';
       selectedDateFilter = '';
       chartGranularity = selectedMonth ? 'daily' : 'monthly';
       updateChartControlButtons();
@@ -1024,7 +1035,10 @@
 
       dateRangeFilter = { start: startVal, end: endVal };
       quickDateDaysActive = fromQuickDays;
-      momSavedCurrentPeriod = null;
+      // 若改為多日區間或清空日期，自動解除單日自訂對比；若仍是單日則保留自訂對比日方便連續比對
+      if (!startVal || !endVal || startVal !== endVal) {
+        customCompareDate = '';
+      }
       selectedDateFilter = '';
       selectedWeekdayFilter = null;
 
@@ -1090,7 +1104,7 @@
 
     function clearDateRange() {
       clearDateRangeStateOnly();
-      momSavedCurrentPeriod = null;
+      customCompareDate = '';
       selectedDateFilter = '';
       if (!document.getElementById('monthFilter').value) {
         chartGranularity = 'monthly';
@@ -1166,38 +1180,84 @@
       }
     }
 
-    // 上月同日比較交互控制
+    // 雙日對比 / 上月同日比較交互控制
     function toggleMomBody() {
       isMomCollapsed = !isMomCollapsed;
       document.getElementById('momComparisonBody').classList.toggle('hidden', isMomCollapsed);
       document.getElementById('btnToggleMom').textContent = isMomCollapsed ? '展開' : '收合';
     }
 
-    function onMomTargetDatePick() {
-      const picked = document.getElementById('momTargetDateInput').value;
+    // 修改「基準日」（左側日期）
+    function onCustomBaseDatePick() {
+      const picked = document.getElementById('customBaseDateInput').value;
       if (!picked) return;
+
       document.getElementById('dateStartInput').value = picked;
       document.getElementById('dateEndInput').value = picked;
-      onDateRangeInputChange(null);
+      dateRangeFilter = { start: picked, end: picked };
+      quickDateDaysActive = null;
+      selectedDateFilter = '';
+      selectedWeekdayFilter = null;
+
+      const currentMonth = document.getElementById('monthFilter').value;
+      if (currentMonth && !picked.startsWith(currentMonth)) {
+        document.getElementById('monthFilter').value = '';
+      }
+
+      chartGranularity = 'daily';
+      updateChartControlButtons();
+      syncDateRangeControls();
+      applyFilters();
     }
 
-    function jumpToPrevMomPeriod() {
-      if (!latestMomResult || !latestMomResult.prevStart) return;
-      momSavedCurrentPeriod = {
-        month: document.getElementById('monthFilter').value,
-        start: dateRangeFilter.start,
-        end: dateRangeFilter.end,
-        selectedDate: selectedDateFilter,
-        quickDays: quickDateDaysActive
-      };
+    // 修改「對比日」（右側日期）
+    function onCustomCompareDatePick() {
+      const picked = document.getElementById('customCompareDateInput').value;
+      if (!picked) {
+        resetCustomCompareDate();
+        return;
+      }
+
+      customCompareDate = picked;
+
+      // 若目前主畫面尚未鎖定單日（例如處於全月份或區間檢視），自動將基準日鎖定為目前基準單日，形成標準「兩天對比」
+      const isAlreadySingleDay = Boolean(
+        selectedDateFilter ||
+        (dateRangeFilter.start && dateRangeFilter.end && dateRangeFilter.start === dateRangeFilter.end)
+      );
+
+      if (!isAlreadySingleDay) {
+        const curBase = document.getElementById('customBaseDateInput').value || datasetMaxDate || formatLocalDate(new Date());
+        document.getElementById('monthFilter').value = '';
+        document.getElementById('dateStartInput').value = curBase;
+        document.getElementById('dateEndInput').value = curBase;
+        dateRangeFilter = { start: curBase, end: curBase };
+        quickDateDaysActive = null;
+        selectedDateFilter = '';
+        selectedWeekdayFilter = null;
+        chartGranularity = 'daily';
+        updateChartControlButtons();
+        syncDateRangeControls();
+      }
+
+      applyFilters();
+    }
+
+    // 對調「基準日」與「對比日」，方便直接往下看另一天的完整訂單明細
+    function swapCustomCompareDates() {
+      if (!latestMomResult || !latestMomResult.isSingleDay) return;
+      const oldBase = latestMomResult.curStart;
+      const oldCompare = latestMomResult.prevStart;
+      if (!oldBase || !oldCompare || oldBase === oldCompare) return;
+
+      customCompareDate = oldBase;
 
       document.getElementById('monthFilter').value = '';
       selectedDateFilter = '';
       selectedWeekdayFilter = null;
-      document.getElementById('dateStartInput').value = latestMomResult.prevStart;
-      document.getElementById('dateEndInput').value = latestMomResult.prevEnd;
-
-      dateRangeFilter = { start: latestMomResult.prevStart, end: latestMomResult.prevEnd };
+      document.getElementById('dateStartInput').value = oldCompare;
+      document.getElementById('dateEndInput').value = oldCompare;
+      dateRangeFilter = { start: oldCompare, end: oldCompare };
       quickDateDaysActive = null;
       chartGranularity = 'daily';
       updateChartControlButtons();
@@ -1205,21 +1265,9 @@
       applyFilters();
     }
 
-    function returnFromPrevMomPeriod() {
-      if (!momSavedCurrentPeriod) return;
-      const saved = momSavedCurrentPeriod;
-      momSavedCurrentPeriod = null;
-
-      document.getElementById('monthFilter').value = saved.month || '';
-      selectedDateFilter = saved.selectedDate || '';
-      document.getElementById('dateStartInput').value = saved.start || '';
-      document.getElementById('dateEndInput').value = saved.end || '';
-      dateRangeFilter = { start: saved.start || '', end: saved.end || '' };
-      quickDateDaysActive = saved.quickDays || null;
-
-      chartGranularity = (saved.month || saved.start || saved.end) ? 'daily' : 'monthly';
-      updateChartControlButtons();
-      syncDateRangeControls();
+    // 重設自訂對比日，恢復自動「上月同日」
+    function resetCustomCompareDate() {
+      customCompareDate = '';
       applyFilters();
     }
 
@@ -1559,7 +1607,7 @@
       };
     }
 
-    // 計算指定起訖日期區間內的指標與 24 小時分佈（供上月同日／同期對比使用）
+    // 計算指定起訖日期區間內的指標與 24 小時分佈（供雙日／上月同期對比使用）
     function computeMetricsForDateWindow(startYmd, endYmd) {
       const rawKeyword = document.getElementById('searchInput').value.trim().toLowerCase();
       const keywords = rawKeyword ? rawKeyword.split(/\s+/) : [];
@@ -1648,7 +1696,7 @@
       };
     }
 
-    // 解析目前應該比較的「本期」與「上月同日／同期」區間
+    // 解析目前應該比較的「基準」與「對比」區間（支援自訂兩天或自動上月同日／同期）
     function resolveMoMComparisonContext() {
       const selectedMonth = document.getElementById('monthFilter').value;
       let curStart = '';
@@ -1659,11 +1707,15 @@
       if (selectedDateFilter) {
         curStart = selectedDateFilter;
         curEnd = selectedDateFilter;
-        modeLabel = '單日 vs 上月同日';
+        modeLabel = customCompareDate ? '自訂兩日對比' : '單日 vs 上月同日';
       } else if (dateRangeFilter.start || dateRangeFilter.end) {
         curStart = dateRangeFilter.start || datasetMinDate || dateRangeFilter.end;
         curEnd = dateRangeFilter.end || datasetMaxDate || dateRangeFilter.start;
-        modeLabel = (curStart === curEnd) ? '單日 vs 上月同日' : '區間 vs 上月同期';
+        if (curStart === curEnd) {
+          modeLabel = customCompareDate ? '自訂兩日對比' : '單日 vs 上月同日';
+        } else {
+          modeLabel = '區間 vs 上月同期';
+        }
       } else if (selectedMonth) {
         let maxInMonth = '';
         for (let i = 0; i < allOrders.length; i++) {
@@ -1678,12 +1730,14 @@
       } else {
         curStart = datasetMaxDate || formatLocalDate(new Date());
         curEnd = curStart;
-        modeLabel = '最新日 vs 上月同日';
-        isAutoLatestDay = true;
+        modeLabel = customCompareDate ? '自訂兩日對比' : '最新日 vs 上月同日';
+        isAutoLatestDay = !customCompareDate;
       }
 
-      const prevStart = shiftYmdByMonths(curStart, -1);
-      const prevEnd = shiftYmdByMonths(curEnd, -1);
+      const isSingleDay = curStart === curEnd;
+      const isCustomTwoDays = Boolean(customCompareDate && isSingleDay);
+      const prevStart = isCustomTwoDays ? customCompareDate : shiftYmdByMonths(curStart, -1);
+      const prevEnd = isCustomTwoDays ? customCompareDate : shiftYmdByMonths(curEnd, -1);
 
       return {
         curStart,
@@ -1691,7 +1745,8 @@
         prevStart,
         prevEnd,
         modeLabel,
-        isSingleDay: curStart === curEnd,
+        isSingleDay,
+        isCustomTwoDays,
         isAutoLatestDay
       };
     }
@@ -1733,9 +1788,19 @@
         isPrevMonthLoaded
       };
 
-      // 更新專屬對比面板標題與日期資訊
-      document.getElementById('momModeBadge').textContent = ctx.modeLabel;
-      document.getElementById('momTargetDateInput').value = ctx.curEnd;
+      // 更新專屬對比面板標題與雙日選擇器
+      const modeBadgeEl = document.getElementById('momModeBadge');
+      modeBadgeEl.textContent = ctx.modeLabel;
+      modeBadgeEl.className = ctx.isCustomTwoDays
+        ? 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200'
+        : 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-50 text-violet-700 border border-violet-200';
+
+      document.getElementById('customBaseDateInput').value = ctx.curEnd;
+      document.getElementById('customCompareDateInput').value = ctx.prevEnd;
+
+      // 控制「對調兩天」與「重設上月同日」按鈕顯示狀態
+      document.getElementById('btnSwapCompareDays').classList.toggle('hidden', !ctx.isSingleDay);
+      document.getElementById('btnResetCustomCompare').classList.toggle('hidden', !ctx.isCustomTwoDays);
 
       const curText = ctx.isSingleDay
         ? `${ctx.curStart} (${getWeekdayNameFromYmd(ctx.curStart)})`
@@ -1745,27 +1810,25 @@
         : `${ctx.prevStart} ～ ${ctx.prevEnd}`;
 
       document.getElementById('momPeriodSummary').textContent =
-        `本期：${curText} vs. 上月對比：${prevText}`;
+        `基準：${curText} vs. 對比：${prevText}`;
 
-      // 缺少上月分頁提醒
+      // 缺少對比月份分頁提醒
       const missingAlert = document.getElementById('momMissingMonthAlert');
       if (!isPrevMonthLoaded) {
         document.getElementById('momMissingMonthText').textContent =
-          `資料庫尚未載入「${prevStartMonth}」月份分頁，因此上月對比數值顯示為 0。`;
+          `資料庫尚未載入「${prevStartMonth}」月份分頁，因此對比數值顯示為 0。`;
         missingAlert.classList.remove('hidden');
       } else {
         missingAlert.classList.add('hidden');
       }
 
-      // 切換檢視上月明細 / 返回本期明細按鈕狀態
-      document.getElementById('btnReturnFromPrevMom').classList.toggle('hidden', !momSavedCurrentPeriod);
-
       const shortCur = ctx.isSingleDay ? ctx.curStart.slice(5) : `${ctx.curStart.slice(5)}~${ctx.curEnd.slice(5)}`;
       const shortPrev = ctx.isSingleDay ? ctx.prevStart.slice(5) : `${ctx.prevStart.slice(5)}~${ctx.prevEnd.slice(5)}`;
+      const diffPrefix = ctx.isSingleDay ? `較 ${shortPrev}` : '較上月同期';
 
       for (let n = 1; n <= 4; n++) {
-        document.getElementById(`momCardCurLabel${n}`).textContent = `本期 (${shortCur})`;
-        document.getElementById(`momCardPrevLabel${n}`).textContent = `上月 (${shortPrev})`;
+        document.getElementById(`momCardCurLabel${n}`).textContent = `基準 (${shortCur})`;
+        document.getElementById(`momCardPrevLabel${n}`).textContent = `對比 (${shortPrev})`;
       }
 
       const applyDeltaStyle = (el, deltaObj) => {
@@ -1785,7 +1848,7 @@
       document.getElementById('momCardCurOrders').textContent = `${curStats.orders.toLocaleString()} 筆`;
       document.getElementById('momCardPrevOrders').textContent = `${prevStats.orders.toLocaleString()} 筆`;
       document.getElementById('momCardOrderDiff').textContent =
-        `較上月同期：${orderDiff >= 0 ? '+' : ''}${orderDiff.toLocaleString()} 筆`;
+        `${diffPrefix}：${orderDiff >= 0 ? '+' : ''}${orderDiff.toLocaleString()} 筆`;
       applyDeltaStyle(document.getElementById('momCardOrderDelta'), orderDelta);
 
       // 2. 成交額
@@ -1794,7 +1857,7 @@
       document.getElementById('momCardCurGmv').textContent = `$${fmt2(curStats.gmv)}`;
       document.getElementById('momCardPrevGmv').textContent = `$${fmt2(prevStats.gmv)}`;
       document.getElementById('momCardGmvDiff').textContent =
-        `較上月同期：${gmvDiff >= 0 ? '+$' : '-$'}${fmt2(Math.abs(gmvDiff))}`;
+        `${diffPrefix}：${gmvDiff >= 0 ? '+$' : '-$'}${fmt2(Math.abs(gmvDiff))}`;
       applyDeltaStyle(document.getElementById('momCardGmvDelta'), gmvDelta);
 
       // 3. 預估分潤
@@ -1803,7 +1866,7 @@
       document.getElementById('momCardCurEst').textContent = `$${fmt2(curStats.est)}`;
       document.getElementById('momCardPrevEst').textContent = `$${fmt2(prevStats.est)}`;
       document.getElementById('momCardEstDiff').textContent =
-        `較上月同期：${estDiff >= 0 ? '+$' : '-$'}${fmt2(Math.abs(estDiff))}`;
+        `${diffPrefix}：${estDiff >= 0 ? '+$' : '-$'}${fmt2(Math.abs(estDiff))}`;
       applyDeltaStyle(document.getElementById('momCardEstDelta'), estDelta);
 
       // 4. 平均客單價
@@ -1812,10 +1875,10 @@
       document.getElementById('momCardCurAov').textContent = `$${curStats.aov.toLocaleString()}`;
       document.getElementById('momCardPrevAov').textContent = `$${prevStats.aov.toLocaleString()}`;
       document.getElementById('momCardAovDiff').textContent =
-        `較上月同期：${aovDiff >= 0 ? '+$' : '-$'}${Math.abs(aovDiff).toLocaleString()}`;
+        `${diffPrefix}：${aovDiff >= 0 ? '+$' : '-$'}${Math.abs(aovDiff).toLocaleString()}`;
       applyDeltaStyle(document.getElementById('momCardAovDelta'), aovDelta);
 
-      // 若使用者明確鎖定了單日、日期區間或單月，同步在上方四張統計卡片顯示 MoM 漲跌徽章
+      // 若使用者明確鎖定了單日、自訂兩日、日期區間或單月，同步在上方四張統計卡片顯示漲跌徽章
       const topBadges = [
         { id: 'momBadgeOrders', delta: orderDelta },
         { id: 'momBadgeGmv', delta: gmvDelta },
@@ -2463,7 +2526,7 @@
       });
     }
 
-    // 右側：每日 24 小時下單時間分佈線圖 + 區間貢獻計算 + 疊加上月曲線
+    // 右側：每日 24 小時下單時間分佈線圖 + 區間貢獻計算 + 疊加對比日曲線
     function updateHourlyChart(entries) {
       const excludeCancelled = document.getElementById('excludeCancelledCheck').checked;
       const prorateCommission = document.getElementById('prorateCommissionCheck').checked;
@@ -2531,7 +2594,7 @@
 
       const metricConfig = {
         orders: {
-          label: '本期訂單數 (筆)',
+          label: '基準訂單數 (筆)',
           getVal: (b) => b.orders,
           borderColor: 'rgb(124, 58, 237)',
           fillColor: 'rgba(124, 58, 237, 0.12)',
@@ -2539,7 +2602,7 @@
           isCurrency: false
         },
         gmv: {
-          label: '本期成交額 ($)',
+          label: '基準成交額 ($)',
           getVal: (b) => round2(b.gmv),
           borderColor: 'rgb(37, 99, 235)',
           fillColor: 'rgba(37, 99, 235, 0.12)',
@@ -2547,7 +2610,7 @@
           isCurrency: true
         },
         est: {
-          label: '本期預估分潤 ($)',
+          label: '基準預估分潤 ($)',
           getVal: (b) => round2(b.est),
           borderColor: 'rgb(217, 119, 6)',
           fillColor: 'rgba(217, 119, 6, 0.12)',
@@ -2602,7 +2665,7 @@
         }
       ];
 
-      // 當使用者鎖定了單日、區間或單月，且勾選「疊加上月曲線」時，加入上月同日/同期虛線對比
+      // 當使用者鎖定了單日、自訂兩日、區間或單月，且勾選「疊加對比日曲線」時，加入虛線對比
       const hasPrevOverlay = showPrevOverlay &&
         latestMomResult &&
         !latestMomResult.isAutoLatestDay &&
@@ -2616,7 +2679,7 @@
           : `${latestMomResult.prevStart.slice(5)}~${latestMomResult.prevEnd.slice(5)}`;
 
         datasets.push({
-          label: `上月對比 (${prevShort})`,
+          label: `對比 (${prevShort})`,
           data: prevSeriesData,
           borderColor: 'rgba(100, 116, 139, 0.75)',
           backgroundColor: 'transparent',
@@ -2688,7 +2751,7 @@
                   const h = context.dataIndex;
                   const b = hourlyBuckets[h];
                   const share = totalValidOrders > 0 ? ((b.orders / totalValidOrders) * 100).toFixed(1) : '0.0';
-                  return ` 本期訂單數：${b.orders.toLocaleString()} 筆（佔 ${share}%）`;
+                  return ` 基準訂單數：${b.orders.toLocaleString()} 筆（佔 ${share}%）`;
                 },
                 afterBody: (items) => {
                   const h = items[0].dataIndex;
@@ -2698,8 +2761,8 @@
                     ? '💡 再點一次可取消時段鎖定'
                     : '💡 點擊可單獨鎖定該小時明細';
                   return [
-                    `本期成交額：$${fmt2(b.gmv)}`,
-                    `本期預估分潤：$${fmt2(b.est)}`,
+                    `基準成交額：$${fmt2(b.gmv)}`,
+                    `基準預估分潤：$${fmt2(b.est)}`,
                     '──────────────────',
                     hint
                   ];
@@ -3068,7 +3131,7 @@
       document.getElementById('subIdFilter').value = '';
       document.getElementById('onlyZeroEstCheck').checked = false;
       clearDateRangeStateOnly();
-      momSavedCurrentPeriod = null;
+      customCompareDate = '';
       selectedDateFilter = '';
       selectedWeekdayFilter = null;
       hourRangeFilter = null;
