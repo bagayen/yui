@@ -129,6 +129,11 @@
             class="px-2.5 py-1 rounded-lg border border-violet-200 bg-violet-50/70 text-violet-700 hover:bg-violet-100 font-medium transition">
             前一日
           </button>
+          <button type="button" id="btnQuickLastWeek" onclick="setQuickLastWeek()"
+            title="鎖定上週日到上週六（共 7 天）"
+            class="px-2.5 py-1 rounded-lg border border-violet-200 bg-violet-50/70 text-violet-700 hover:bg-violet-100 font-medium transition">
+            上一週
+          </button>
           <span class="text-slate-300 mx-0.5">|</span>
           <button type="button" id="btnQuick7d" onclick="setQuickDateRange(7)"
             class="px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition">
@@ -211,7 +216,7 @@
       <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
         <div>
           <div class="flex flex-wrap items-center gap-2">
-            <h2 class="text-base font-bold text-slate-900">雙日對比 / 上月同期比較</h2>
+            <h2 class="text-base font-bold text-slate-900">雙日對比 / 同期比較</h2>
             <span id="momModeBadge"
               class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-50 text-violet-700 border border-violet-200">
               最新日 vs 上月同日
@@ -424,14 +429,14 @@
                 <span class="text-amber-600 font-bold">✕</span>
               </button>
             </div>
-            <p class="text-xs text-slate-500 mt-0.5">可點擊單一節點、框選起訖小時，或疊加對比日曲線對照每小時熱度</p>
+            <p class="text-xs text-slate-500 mt-0.5">可點擊單一節點、框選起訖小時，或疊加對比曲線對照每小時熱度</p>
           </div>
 
           <div class="flex flex-wrap items-center gap-2">
             <label class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-600 cursor-pointer select-none hover:bg-slate-100">
               <input type="checkbox" id="overlayPrevMonthHourlyCheck" checked onchange="applyFilters()"
                 class="rounded border-slate-300 text-violet-600 focus:ring-violet-500">
-              <span>疊加對比日曲線</span>
+              <span>疊加對比曲線</span>
             </label>
 
             <div class="inline-flex rounded-lg bg-slate-100 p-1 text-xs font-medium">
@@ -685,10 +690,10 @@
     let datasetMinDate = '';
     let datasetMaxDate = '';
 
-    // 雙日對比 / 上月同日比較狀態
+    // 雙日對比 / 同期比較狀態
     let isMomCollapsed = false;
     let customCompareDate = ''; // 若為空字串則自動使用「上月同日」，有值時則使用自訂對比日
-    let latestMomResult = null;   // 供 24 小時折線圖疊加對比日曲線使用
+    let latestMomResult = null;   // 供 24 小時折線圖疊加對比曲線使用
 
     // 左側月/日條狀圖狀態變數
     let trendChartInstance = null;
@@ -980,7 +985,7 @@
       applyFilters();
     }
 
-    // 本地日期解析與加減月數工具（支援月底大小月自動對齊，如 3/31 -> 2/28）
+    // 本地日期解析與加減月數/天數工具（支援月底大小月自動對齊，如 3/31 -> 2/28）
     function parseLocalDate(ymd) {
       const m = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
       if (!m) return null;
@@ -992,6 +997,13 @@
       const m = String(dt.getMonth() + 1).padStart(2, '0');
       const d = String(dt.getDate()).padStart(2, '0');
       return `${y}-${m}-${d}`;
+    }
+
+    function shiftYmdByDays(ymd, deltaDays) {
+      const dt = parseLocalDate(ymd);
+      if (!dt) return '';
+      const shifted = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate() + deltaDays);
+      return formatLocalDate(shifted);
     }
 
     function shiftYmdByMonths(ymd, deltaMonths) {
@@ -1082,6 +1094,46 @@
       onDateRangeInputChange(null);
     }
 
+    // 計算「上一週（週日～週六）」的起訖日期
+    function getLastWeekSunToSatRange() {
+      const todayStr = formatLocalDate(new Date());
+      let anchorStr = todayStr;
+      if (datasetMaxDate) {
+        const todayDt = parseLocalDate(todayStr);
+        const maxDt = parseLocalDate(datasetMaxDate);
+        if (todayDt && maxDt) {
+          const diffDays = Math.round((todayDt - maxDt) / (1000 * 60 * 60 * 24));
+          // 若資料庫最新日期距離今天超過 7 天（例如檢視歷史封存資料），則以資料庫最新日為基準推算上一週
+          if (diffDays > 7 || diffDays < 0) {
+            anchorStr = datasetMaxDate;
+          }
+        }
+      }
+
+      const baseDt = parseLocalDate(anchorStr) || new Date();
+      const dayOfWeek = baseDt.getDay(); // 0 = 週日, 6 = 週六
+      const lastSaturday = new Date(baseDt.getFullYear(), baseDt.getMonth(), baseDt.getDate() - dayOfWeek - 1);
+      const lastSunday = new Date(baseDt.getFullYear(), baseDt.getMonth(), baseDt.getDate() - dayOfWeek - 7);
+
+      return {
+        start: formatLocalDate(lastSunday),
+        end: formatLocalDate(lastSaturday)
+      };
+    }
+
+    // 上一週快選（週日到週六）
+    function setQuickLastWeek() {
+      const { start, end } = getLastWeekSunToSatRange();
+      if (dateRangeFilter.start === start && dateRangeFilter.end === end) {
+        clearDateRange();
+        return;
+      }
+
+      document.getElementById('dateStartInput').value = start;
+      document.getElementById('dateEndInput').value = end;
+      onDateRangeInputChange(null);
+    }
+
     function setQuickDateRange(days) {
       if (quickDateDaysActive === days) {
         clearDateRange();
@@ -1127,12 +1179,15 @@
       const anchorStr = datasetMaxDate || formatLocalDate(new Date());
       const baseDt = parseLocalDate(anchorStr) || new Date();
       const yesterdayStr = formatLocalDate(new Date(baseDt.getFullYear(), baseDt.getMonth(), baseDt.getDate() - 1));
+      const lastWeekRange = getLastWeekSunToSatRange();
 
       const isLatestActive = dateRangeFilter.start === anchorStr && dateRangeFilter.end === anchorStr;
       const isYesterdayActive = dateRangeFilter.start === yesterdayStr && dateRangeFilter.end === yesterdayStr;
+      const isLastWeekActive = dateRangeFilter.start === lastWeekRange.start && dateRangeFilter.end === lastWeekRange.end;
 
       document.getElementById('btnQuickLatestDay').className = isLatestActive ? singleActive : singleDefault;
       document.getElementById('btnQuickYesterday').className = isYesterdayActive ? singleActive : singleDefault;
+      document.getElementById('btnQuickLastWeek').className = isLastWeekActive ? singleActive : singleDefault;
 
       document.getElementById('btnQuick7d').className = quickDateDaysActive === 7 ? quickActive : quickDefault;
       document.getElementById('btnQuick14d').className = quickDateDaysActive === 14 ? quickActive : quickDefault;
@@ -1180,7 +1235,7 @@
       }
     }
 
-    // 雙日對比 / 上月同日比較交互控制
+    // 雙日對比 / 同期比較交互控制
     function toggleMomBody() {
       isMomCollapsed = !isMomCollapsed;
       document.getElementById('momComparisonBody').classList.toggle('hidden', isMomCollapsed);
@@ -1607,7 +1662,7 @@
       };
     }
 
-    // 計算指定起訖日期區間內的指標與 24 小時分佈（供雙日／上月同期對比使用）
+    // 計算指定起訖日期區間內的指標與 24 小時分佈（供雙日／週期／上月同期對比使用）
     function computeMetricsForDateWindow(startYmd, endYmd) {
       const rawKeyword = document.getElementById('searchInput').value.trim().toLowerCase();
       const keywords = rawKeyword ? rawKeyword.split(/\s+/) : [];
@@ -1696,7 +1751,7 @@
       };
     }
 
-    // 解析目前應該比較的「基準」與「對比」區間（支援自訂兩天或自動上月同日／同期）
+    // 解析目前應該比較的「基準」與「對比」區間（支援自訂兩天、上一週 vs 上上一週、或自動上月同日／同期）
     function resolveMoMComparisonContext() {
       const selectedMonth = document.getElementById('monthFilter').value;
       let curStart = '';
@@ -1736,8 +1791,29 @@
 
       const isSingleDay = curStart === curEnd;
       const isCustomTwoDays = Boolean(customCompareDate && isSingleDay);
-      const prevStart = isCustomTwoDays ? customCompareDate : shiftYmdByMonths(curStart, -1);
-      const prevEnd = isCustomTwoDays ? customCompareDate : shiftYmdByMonths(curEnd, -1);
+
+      // 判斷是否為「上一週（週日～週六）」
+      const lastWeekRange = getLastWeekSunToSatRange();
+      const isLastWeekMode = Boolean(!isSingleDay && curStart === lastWeekRange.start && curEnd === lastWeekRange.end);
+
+      let prevStart = '';
+      let prevEnd = '';
+      let diffPrefix = '';
+
+      if (isCustomTwoDays) {
+        prevStart = customCompareDate;
+        prevEnd = customCompareDate;
+        diffPrefix = `較 ${prevStart.slice(5)}`;
+      } else if (isLastWeekMode) {
+        modeLabel = '上一週 vs 上上一週';
+        prevStart = shiftYmdByDays(curStart, -7);
+        prevEnd = shiftYmdByDays(curEnd, -7);
+        diffPrefix = '較上上一週';
+      } else {
+        prevStart = shiftYmdByMonths(curStart, -1);
+        prevEnd = shiftYmdByMonths(curEnd, -1);
+        diffPrefix = isSingleDay ? `較 ${prevStart.slice(5)}` : '較上月同期';
+      }
 
       return {
         curStart,
@@ -1745,8 +1821,10 @@
         prevStart,
         prevEnd,
         modeLabel,
+        diffPrefix,
         isSingleDay,
         isCustomTwoDays,
+        isLastWeekMode,
         isAutoLatestDay
       };
     }
@@ -1791,7 +1869,7 @@
       // 更新專屬對比面板標題與雙日選擇器
       const modeBadgeEl = document.getElementById('momModeBadge');
       modeBadgeEl.textContent = ctx.modeLabel;
-      modeBadgeEl.className = ctx.isCustomTwoDays
+      modeBadgeEl.className = (ctx.isCustomTwoDays || ctx.isLastWeekMode)
         ? 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200'
         : 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-50 text-violet-700 border border-violet-200';
 
@@ -1824,7 +1902,7 @@
 
       const shortCur = ctx.isSingleDay ? ctx.curStart.slice(5) : `${ctx.curStart.slice(5)}~${ctx.curEnd.slice(5)}`;
       const shortPrev = ctx.isSingleDay ? ctx.prevStart.slice(5) : `${ctx.prevStart.slice(5)}~${ctx.prevEnd.slice(5)}`;
-      const diffPrefix = ctx.isSingleDay ? `較 ${shortPrev}` : '較上月同期';
+      const diffPrefix = ctx.diffPrefix;
 
       for (let n = 1; n <= 4; n++) {
         document.getElementById(`momCardCurLabel${n}`).textContent = `基準 (${shortCur})`;
@@ -1878,7 +1956,7 @@
         `${diffPrefix}：${aovDiff >= 0 ? '+$' : '-$'}${Math.abs(aovDiff).toLocaleString()}`;
       applyDeltaStyle(document.getElementById('momCardAovDelta'), aovDelta);
 
-      // 若使用者明確鎖定了單日、自訂兩日、日期區間或單月，同步在上方四張統計卡片顯示漲跌徽章
+      // 若使用者明確鎖定了單日、自訂兩日、上一週、日期區間或單月，同步在上方四張統計卡片顯示漲跌徽章
       const topBadges = [
         { id: 'momBadgeOrders', delta: orderDelta },
         { id: 'momBadgeGmv', delta: gmvDelta },
@@ -2526,7 +2604,7 @@
       });
     }
 
-    // 右側：每日 24 小時下單時間分佈線圖 + 區間貢獻計算 + 疊加對比日曲線
+    // 右側：每日 24 小時下單時間分佈線圖 + 區間貢獻計算 + 疊加對比曲線
     function updateHourlyChart(entries) {
       const excludeCancelled = document.getElementById('excludeCancelledCheck').checked;
       const prorateCommission = document.getElementById('prorateCommissionCheck').checked;
@@ -2665,7 +2743,7 @@
         }
       ];
 
-      // 當使用者鎖定了單日、自訂兩日、區間或單月，且勾選「疊加對比日曲線」時，加入虛線對比
+      // 當使用者鎖定了單日、自訂兩日、上一週、區間或單月，且勾選「疊加對比曲線」時，加入虛線對比
       const hasPrevOverlay = showPrevOverlay &&
         latestMomResult &&
         !latestMomResult.isAutoLatestDay &&
